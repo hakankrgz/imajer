@@ -51,6 +51,28 @@ func TestUISplitProgressOnCarriageReturn(t *testing.T) {
 	}
 }
 
+func TestUIFinishOperationAddsReadableSummary(t *testing.T) {
+	started := time.Now().UTC().Add(-3 * time.Second)
+	server := &uiServer{status: uiStatus{
+		Running: true, Action: "acquire", StartedAt: started,
+		Logs: []string{"disk 100.00%"},
+	}}
+	server.finishOperation(nil)
+	if server.status.Running || !server.status.Success || server.status.FinishedAt.IsZero() {
+		t.Fatalf("unexpected final status: %#v", server.status)
+	}
+	logText := strings.Join(server.status.Logs, "\n")
+	for _, expected := range []string{
+		"SONUÇ: İŞLEM BAŞARIYLA TAMAMLANDI",
+		"Bitiş:",
+		"Toplam süre:",
+	} {
+		if !strings.Contains(logText, expected) {
+			t.Fatalf("completion summary is missing %q: %s", expected, logText)
+		}
+	}
+}
+
 func TestUIRedaction(t *testing.T) {
 	input := "password=hunter2 Authorization=BasicSecret Bearer ey.secret.token"
 	got := redactUI(input)

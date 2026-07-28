@@ -38,6 +38,12 @@ ACQUISITION_VERIFIED
 PACKAGE_INTEGRITY_OK
 ```
 
+Sağdaki **Canlı kayıt** alanı işlem boyunca ilerlemeyi gösterir. **Büyüt**
+düğmesiyle kayıt alanını pencere boyutuna çıkarabilir, **En alta** ile en yeni
+satıra dönebilirsiniz. İşlem bittiğinde kayıtların üstündeki sonuç kutusu
+başarı, hata veya iptal durumunu; başlangıç/bitiş zamanını ve sonraki adımı
+açıkça gösterir.
+
 ## Gerçek edinim
 
 1. **Yeni işlem oluştur** sekmesine girin.

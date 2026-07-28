@@ -1,8 +1,8 @@
 # Plan Uygunluk ve Eksik Analizi
 
 Tarih: 2026-07-29
-Revizyon: 6 — uzak disk keşfi ve sadeleştirilmiş masaüstü akışı
-Doğrulanan geliştirme sürümü: `0.6.0`
+Revizyon: 7 — okunabilir canlı kayıt ve kalıcı işlem sonuç özeti
+Doğrulanan geliştirme sürümü: `0.6.1`
 
 ## 1. Güncel sonuç
 
@@ -49,6 +49,14 @@ operatöre gösterilir; bağımsız kaynaktan doğrulama onayı verilmeden anaht
 kaydedilmez ve SSH oturumu kurulmaz. Daha önce kayıtlı anahtar değişmişse
 otomatik güncelleme yapılmaz, bağlantı olası saldırı/anahtar değişimi olarak
 durdurulur.
+
+`0.6.1` ile masaüstü canlı kayıt alanı genişletilmiş, yazı boyutu ve satır
+aralığı artırılmış ve tam pencereye yakın büyütme modu eklenmiştir. Ayrı sonuç
+paneli işlem sürüyor/başarılı/başarısız/iptal durumlarını renk ve açık Türkçe
+metinle gösterir. Başlangıç, bitiş ve toplam süre ayrı alanlardır. Edinim
+sonunda doğrulama adımı; verify sonunda imaj bütünlüğü ve imza sonucu açıkça
+gösterilir. Arka uç her işlem sonuna makine çıktısından bağımsız `SONUÇ`,
+UTC bitiş zamanı ve toplam süre satırları ekler.
 
 İlk analizdeki beş P0 maddeden dördünün kod tarafı kapatılmıştır:
 
@@ -263,6 +271,12 @@ Arşivlenmiş özet: `test/remote-ssh/TEST_SONUCU.md`
   sector otomatik üretildi; kaynak ve `disk.001` SHA-256 eşleşti,
   `verified_continuous`, `ACQUISITION_VERIFIED` ve `PACKAGE_INTEGRITY_OK`
   sonuçları alındı.
+- `0.6.1` paketi aynı native pencerede gerçek yerel edinim ve verify işlemiyle
+  sınandı. Sonuç panelinde başlangıç/bitiş/süre, “İmaj alma tamamlandı” sonraki
+  adım açıklaması ve verify sonrasında “Kanıt başarıyla doğrulandı”,
+  “İMAJ DOĞRULANDI” ile “İMZA GEÇERLİ” rozetleri görsel olarak doğrulandı.
+  Canlı kaydın büyük yazısı, 420 px varsayılan yüksekliği, satır sayacı ve
+  kalıcı `SONUÇ`/bitiş/süre satırları doğrulandı.
 - Windows masaüstü binary'lerinde GUI subsystem; çift tıklamada konsol
   penceresi veya normal tarayıcı sekmesi açılmıyor.
 - Altı agent binary'si Ed25519 imzalı tool manifestinde; paket içindeki public

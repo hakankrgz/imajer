@@ -239,10 +239,25 @@
       <div class="status-card">
         <div><span>İşlem</span><strong id="statusAction">—</strong></div>
         <div><span>Başlangıç</span><strong id="statusStarted">—</strong></div>
+        <div><span>Bitiş</span><strong id="statusFinished">—</strong></div>
+        <div><span>Süre</span><strong id="statusDuration">—</strong></div>
         <div><span>Kanıt dizini</span><strong id="statusCase">—</strong></div>
       </div>
+      <div class="result-panel idle" id="resultPanel" role="status" aria-live="polite">
+        <div class="result-icon" id="resultIcon">i</div>
+        <div>
+          <strong id="resultHeading">Henüz işlem başlatılmadı</strong>
+          <p id="resultSummary">Bir işlem başladığında ilerleme ve sonuç burada açıklanacak.</p>
+          <div class="result-badges" id="resultBadges"></div>
+        </div>
+      </div>
       <div class="console-wrap">
-        <div class="console-title"><span></span><span></span><span></span><b>Canlı kayıt</b></div>
+        <div class="console-title">
+          <b>Canlı kayıt</b>
+          <span id="consoleLineCount">0 satır</span>
+          <button type="button" id="scrollConsoleButton">En alta</button>
+          <button type="button" id="expandConsoleButton">Büyüt</button>
+        </div>
         <pre id="console" aria-live="polite">Arayüz hazır. Bir işlem seçin.</pre>
       </div>
       <button class="button danger full hidden" id="cancelButton">İşlemi güvenle durdur</button>

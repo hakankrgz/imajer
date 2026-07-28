@@ -655,15 +655,23 @@ func (s *uiServer) finishOperation(err error) {
 	s.status.Running = false
 	s.status.FinishedAt = time.Now().UTC()
 	s.status.Success = err == nil
+	s.status.Logs = append(s.status.Logs, "------------------------------------------------------------")
 	if err == nil {
 		s.status.Message = "İşlem başarıyla tamamlandı"
+		s.status.Logs = append(s.status.Logs, "SONUÇ: İŞLEM BAŞARIYLA TAMAMLANDI")
 	} else if errors.Is(err, context.Canceled) {
 		s.status.Message = "İşlem iptal edildi"
-		s.status.Logs = append(s.status.Logs, "İptal edildi")
+		s.status.Logs = append(s.status.Logs, "SONUÇ: İŞLEM İPTAL EDİLDİ")
 	} else {
 		s.status.Message = "İşlem başarısız: " + redactUI(err.Error())
-		s.status.Logs = append(s.status.Logs, s.status.Message)
+		s.status.Logs = append(s.status.Logs, "SONUÇ: İŞLEM TAMAMLANAMADI", s.status.Message)
 	}
+	duration := s.status.FinishedAt.Sub(s.status.StartedAt).Round(time.Second)
+	s.status.Logs = append(
+		s.status.Logs,
+		"Bitiş: "+s.status.FinishedAt.Format(time.RFC3339),
+		"Toplam süre: "+duration.String(),
+	)
 	s.cancel = nil
 }
 

@@ -3,7 +3,7 @@ set -eu
 
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 GO_BIN=${GO:-go}
-VERSION=${VERSION:-0.6.0}
+VERSION=${VERSION:-0.6.1}
 DIST_DIR="$PROJECT_DIR/dist"
 BUILD_DIR="$DIST_DIR/package-build"
 PACKAGE_DIR="$DIST_DIR/packages"

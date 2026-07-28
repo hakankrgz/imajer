@@ -5,6 +5,7 @@ let lastTransport = "";
 let inventoryDisks = [];
 let inventoryReady = false;
 let pendingHostKeyFingerprint = "";
+let lastFinishedAt = "";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -261,27 +262,132 @@ function formatAction(action) {
   }[action] || action || "—";
 }
 
+function formatDuration(startedAt, finishedAt) {
+  if (!startedAt) return "—";
+  const start = new Date(startedAt).getTime();
+  const end = finishedAt ? new Date(finishedAt).getTime() : Date.now();
+  const totalSeconds = Math.max(0, Math.floor((end - start) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours) return `${hours} sa ${minutes} dk ${seconds} sn`;
+  if (minutes) return `${minutes} dk ${seconds} sn`;
+  return `${seconds} sn`;
+}
+
+function resultBadge(label) {
+  const element = document.createElement("span");
+  element.className = "result-badge";
+  element.textContent = label;
+  return element;
+}
+
+function latestUsefulLog(logs) {
+  for (let index = logs.length - 1; index >= 0; index -= 1) {
+    const line = logs[index].trim();
+    if (line && !line.startsWith("$ imajer")) return line;
+  }
+  return "";
+}
+
+function renderResult(status) {
+  const panel = $("#resultPanel");
+  const heading = $("#resultHeading");
+  const summary = $("#resultSummary");
+  const icon = $("#resultIcon");
+  const badges = $("#resultBadges");
+  const logs = status.logs || [];
+  const logText = logs.join("\n");
+  badges.replaceChildren();
+  panel.className = "result-panel";
+
+  if (status.running) {
+    panel.classList.add("running");
+    icon.textContent = "…";
+    heading.textContent = `${formatAction(status.action)} devam ediyor`;
+    summary.textContent = latestUsefulLog(logs) || "İşlem başladı; canlı kayıtlar aşağıda gösteriliyor.";
+    return;
+  }
+  if (!status.finished_at) {
+    panel.classList.add("idle");
+    icon.textContent = "i";
+    heading.textContent = "Henüz işlem başlatılmadı";
+    summary.textContent = "Bir işlem başladığında ilerleme ve sonuç burada açıklanacak.";
+    return;
+  }
+  if (!status.success) {
+    const canceled = (status.message || "").toLocaleLowerCase("tr-TR").includes("iptal");
+    panel.classList.add(canceled ? "canceled" : "failed");
+    icon.textContent = canceled ? "!" : "×";
+    heading.textContent = canceled ? "İşlem güvenle durduruldu" : "İşlem tamamlanamadı";
+    summary.textContent = status.message || latestUsefulLog(logs) || "Ayrıntılar canlı kayıtta.";
+    return;
+  }
+
+  panel.classList.add("success");
+  icon.textContent = "✓";
+  if (status.action === "acquire" || status.action === "resume") {
+    heading.textContent = "İmaj alma tamamlandı";
+    summary.textContent = "Kanıt dosyaları kaydedildi. Son adım olarak “Kanıt doğrula” işlemini çalıştırın.";
+    badges.append(resultBadge("İMAJ TAMAMLANDI"));
+  } else if (status.action === "verify") {
+    const acquisitionVerified = logText.includes("ACQUISITION_VERIFIED");
+    const packageVerified = logText.includes("PACKAGE_INTEGRITY_OK");
+    heading.textContent = acquisitionVerified && packageVerified
+      ? "Kanıt başarıyla doğrulandı"
+      : "Kanıt kontrolü tamamlandı";
+    summary.textContent = acquisitionVerified && packageVerified
+      ? "İmaj bütünlüğü, hash değerleri ve imzalı kanıt paketi geçerli."
+      : "Kontrol tamamlandı; ayrıntılı sonucu aşağıdaki canlı kayıttan inceleyin.";
+    if (acquisitionVerified) badges.append(resultBadge("İMAJ DOĞRULANDI"));
+    if (packageVerified) badges.append(resultBadge("İMZA GEÇERLİ"));
+  } else if (status.action === "discover") {
+    heading.textContent = "Hedef kontrolü tamamlandı";
+    summary.textContent = "Hedef bilgileri ve erişim koşulları kontrol edildi. İmaj alma işlemine geçebilirsiniz.";
+  } else if (status.action === "report") {
+    heading.textContent = "Rapor başarıyla yenilendi";
+    summary.textContent = "Vaka raporu güncel işlem ve doğrulama kayıtlarıyla oluşturuldu.";
+  } else if (status.action === "cleanup") {
+    heading.textContent = "Temizlik tamamlandı";
+    summary.textContent = "IMAJER’in hedefte oluşturduğu geçici agent ve araç izleri için cleanup tamamlandı.";
+  } else {
+    heading.textContent = "İşlem başarıyla tamamlandı";
+    summary.textContent = latestUsefulLog(logs) || "İşlem hatasız sona erdi.";
+  }
+}
+
 async function pollStatus() {
   try {
     const status = await api("/api/status");
     $("#statusTitle").textContent = status.message || "Hazır";
     $("#statusAction").textContent = formatAction(status.action);
     $("#statusStarted").textContent = status.started_at ? new Date(status.started_at).toLocaleString("tr-TR") : "—";
+    $("#statusFinished").textContent = status.finished_at ? new Date(status.finished_at).toLocaleString("tr-TR") : "—";
+    $("#statusDuration").textContent = formatDuration(status.started_at, status.finished_at);
     $("#statusCase").textContent = status.case_dir || "—";
     $("#statusCase").title = status.case_dir || "";
+    renderResult(status);
     const dot = $("#statusDot");
     dot.className = "status-dot";
     if (status.running) dot.classList.add("running");
     else if (status.finished_at) dot.classList.add(status.success ? "success" : "failed");
     $("#cancelButton").classList.toggle("hidden", !status.running);
     $$("button").forEach(button => {
-      if (button.id !== "cancelButton" && !button.classList.contains("tab")) button.disabled = status.running;
+      const monitorControl = button.id === "expandConsoleButton" || button.id === "scrollConsoleButton";
+      if (button.id !== "cancelButton" && !button.classList.contains("tab") && !monitorControl) {
+        button.disabled = status.running;
+      }
     });
     if ((status.logs || []).length !== lastLogCount) {
       const consoleElement = $("#console");
       consoleElement.textContent = (status.logs || []).join("\n") || "Henüz kayıt yok.";
       consoleElement.scrollTop = consoleElement.scrollHeight;
       lastLogCount = (status.logs || []).length;
+      $("#consoleLineCount").textContent = `${lastLogCount} satır`;
+    }
+    if (status.finished_at && status.finished_at !== lastFinishedAt) {
+      if (lastFinishedAt || status.action) toast(status.message || "İşlem tamamlandı");
+      lastFinishedAt = status.finished_at;
     }
   } catch (error) {
     $("#statusTitle").textContent = "Arayüz bağlantısı kesildi";
@@ -402,6 +508,28 @@ $("#cancelButton").addEventListener("click", async () => {
     toast(result.message);
   } catch (error) {
     toast(error.message);
+  }
+});
+
+$("#scrollConsoleButton").addEventListener("click", () => {
+  const consoleElement = $("#console");
+  consoleElement.scrollTop = consoleElement.scrollHeight;
+});
+
+$("#expandConsoleButton").addEventListener("click", () => {
+  const monitor = $(".monitor");
+  const expanded = monitor.classList.toggle("console-expanded");
+  $("#expandConsoleButton").textContent = expanded ? "Normal boyut" : "Büyüt";
+  if (expanded) {
+    const consoleElement = $("#console");
+    consoleElement.scrollTop = consoleElement.scrollHeight;
+  }
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && $(".monitor").classList.contains("console-expanded")) {
+    $(".monitor").classList.remove("console-expanded");
+    $("#expandConsoleButton").textContent = "Büyüt";
   }
 });
 
