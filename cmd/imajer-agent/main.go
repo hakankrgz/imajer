@@ -18,7 +18,7 @@ import (
 	"github.com/hakankrgz/imajer/internal/source"
 )
 
-var version = "dev"
+var version = "0.6.2"
 
 func main() {
 	if len(os.Args) < 2 {
