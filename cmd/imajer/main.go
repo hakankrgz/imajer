@@ -29,12 +29,22 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var version = "dev"
+var (
+	version     = "dev"
+	desktopMode = "false"
+)
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if len(os.Args) < 2 {
+		if desktopMode == "true" {
+			if err := runUI(ctx, nil); err != nil {
+				fmt.Fprintln(os.Stderr, "imajer:", err)
+				os.Exit(1)
+			}
+			return
+		}
 		usage()
 		os.Exit(2)
 	}

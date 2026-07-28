@@ -1,5 +1,6 @@
 # Build and test output
 /dist/
+/.release-keys/
 /test/remote-ssh/runtime/
 /coverage.out
 /*.prof

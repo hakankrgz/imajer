@@ -2,24 +2,24 @@
 
 ## macOS
 
-Finder'da proje klasörünü açın ve şu dosyaya çift tıklayın:
+Uygulamalar klasöründe şu uygulamaya çift tıklayın:
 
 ```text
-IMAJER-ARAYUZ.command
+IMAJER.app
 ```
 
-Tarayıcı otomatik açılmazsa Terminal'de gösterilen
-`http://127.0.0.1:8765` adresini Safari veya Chrome'a yazın.
+Tarayıcı otomatik açılmazsa Safari veya Chrome'a
+`http://127.0.0.1:8765` adresini yazın.
 
 ## Windows
 
-Şu dosyaya çift tıklayın:
+İndirdiğiniz ZIP'i tamamen çıkardıktan sonra şu dosyaya çift tıklayın:
 
 ```text
-IMAJER-ARAYUZ-WINDOWS.cmd
+IMAJER.exe
 ```
 
-Başlatıcı işlemci mimarisine göre amd64 veya ARM64 controller'ı seçer.
+x64 ve ARM64 için ayrı hazır paketler bulunur.
 
 ## İlk deneme
 
@@ -59,5 +59,8 @@ dosyasını seçip **Devam et** düğmesine basın.
   ve sınırlı cleanup işleminin tamamlanmasını bekler.
 - Tarayıcı sekmesini kapatmak acquisition sürecini durdurmaz. İşlem durumunu
   görmek için aynı adresi yeniden açabilirsiniz.
-- Arayüz sunucusunu tamamen kapatmak için Terminal penceresinde `Ctrl+C`
-  kullanın.
+- Arayüz sunucusunu tamamen kapatmak için sağdaki **Uygulamayı kapat**
+  düğmesini kullanın.
+
+Kurulum, ilk açılış uyarıları ve paket seçimi için
+[`MASAUSTU_KULLANIM.md`](MASAUSTU_KULLANIM.md) dosyasına bakın.

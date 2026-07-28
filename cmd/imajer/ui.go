@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/x509"
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -33,12 +36,16 @@ import (
 var uiFiles embed.FS
 
 type uiServer struct {
-	mu         sync.Mutex
-	token      string
-	executable string
-	workingDir string
-	cancel     context.CancelFunc
-	status     uiStatus
+	mu                sync.Mutex
+	token             string
+	executable        string
+	workingDir        string
+	resourceDir       string
+	defaultSigningKey string
+	packaged          bool
+	cancel            context.CancelFunc
+	shutdown          chan struct{}
+	status            uiStatus
 }
 
 type uiStatus struct {
@@ -114,9 +121,16 @@ func runUI(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	workingDir, err := os.Getwd()
+	workingDir, resourceDir, packaged, err := resolveUIRuntime(executable)
 	if err != nil {
 		return err
+	}
+	defaultSigningKey := ""
+	if packaged {
+		defaultSigningKey, _, err = ensureExaminerKey(workingDir)
+		if err != nil {
+			return fmt.Errorf("incelemeci imza anahtarını hazırla: %w", err)
+		}
 	}
 	token, err := secureToken()
 	if err != nil {
@@ -124,13 +138,17 @@ func runUI(ctx context.Context, args []string) error {
 	}
 	server := &uiServer{
 		token: token, executable: executable, workingDir: workingDir,
+		resourceDir: resourceDir, defaultSigningKey: defaultSigningKey,
+		packaged: packaged, shutdown: make(chan struct{}, 1),
 		status: uiStatus{Message: "Hazır", Logs: []string{}},
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/health", server.handleHealth)
 	mux.HandleFunc("/api/config", server.handleConfig)
 	mux.HandleFunc("/api/status", server.handleStatus)
 	mux.HandleFunc("/api/run", server.requireToken(server.handleRun))
 	mux.HandleFunc("/api/cancel", server.requireToken(server.handleCancel))
+	mux.HandleFunc("/api/shutdown", server.requireToken(server.handleShutdown))
 	assets, err := fs.Sub(uiFiles, "ui")
 	if err != nil {
 		return err
@@ -146,6 +164,9 @@ func runUI(ctx context.Context, args []string) error {
 	}
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
+		if openRunningUI(*listen) {
+			return nil
+		}
 		return err
 	}
 	url := "http://" + listener.Addr().String()
@@ -158,7 +179,10 @@ func runUI(ctx context.Context, args []string) error {
 		}()
 	}
 	go func() {
-		<-ctx.Done()
+		select {
+		case <-ctx.Done():
+		case <-server.shutdown:
+		}
 		server.mu.Lock()
 		if server.cancel != nil {
 			server.cancel()
@@ -175,24 +199,66 @@ func runUI(ctx context.Context, args []string) error {
 	return err
 }
 
+func (s *uiServer) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"application": "IMAJER", "version": version})
+}
+
 func (s *uiServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	home, _ := os.UserHomeDir()
-	defaultAgent := filepath.Join(s.workingDir, "dist", "imajer-agent")
-	if runtime.GOOS == "windows" {
-		defaultAgent = filepath.Join(s.workingDir, "dist", "imajer-agent-windows-amd64.exe")
+	agentsDir := filepath.Join(s.resourceDir, "agents")
+	agents := map[string]string{
+		"linux_amd64":   filepath.Join(agentsDir, "imajer-agent-linux-amd64"),
+		"linux_arm64":   filepath.Join(agentsDir, "imajer-agent-linux-arm64"),
+		"windows_amd64": filepath.Join(agentsDir, "imajer-agent-windows-amd64.exe"),
+	}
+	localAgent := filepath.Join(s.workingDir, "dist", "imajer-agent")
+	if s.packaged {
+		localName := "imajer-agent-" + runtime.GOOS + "-" + runtime.GOARCH
+		if runtime.GOOS == "windows" {
+			localName += ".exe"
+		}
+		localAgent = filepath.Join(agentsDir, localName)
+	}
+	if runtime.GOOS == "windows" && !s.packaged {
+		localAgent = filepath.Join(s.workingDir, "dist", "imajer-agent-windows-amd64.exe")
+	}
+	agents["local"] = localAgent
+	demoJob := filepath.Join(s.workingDir, "demo", "local-job.yaml")
+	demoCase := filepath.Join(s.workingDir, "demo", "evidence", "CASE-LOCAL-001", "EVID-LOCAL-001")
+	demoPublicKey := filepath.Join(s.workingDir, "demo", "keys", "examiner-public.pem")
+	demoAvailable := regularFileExists(demoJob) && regularFileExists(localAgent)
+	defaultOutput := filepath.Join(home, "Documents", "IMAJER-Evidence")
+	toolManifest := filepath.Join(agentsDir, "tool-manifest.json")
+	trustPublicKey := filepath.Join(agentsDir, "tool-release-public.pem")
+	if !regularFileExists(toolManifest) {
+		toolManifest = ""
+	}
+	if !regularFileExists(trustPublicKey) {
+		trustPublicKey = ""
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"token":           s.token,
-		"working_dir":     s.workingDir,
-		"home_dir":        home,
-		"default_agent":   defaultAgent,
-		"demo_job":        filepath.Join(s.workingDir, "demo", "local-job.yaml"),
-		"demo_case_dir":   filepath.Join(s.workingDir, "demo", "evidence", "CASE-LOCAL-001", "EVID-LOCAL-001"),
-		"demo_public_key": filepath.Join(s.workingDir, "demo", "keys", "examiner-public.pem"),
+		"token":               s.token,
+		"working_dir":         s.workingDir,
+		"home_dir":            home,
+		"packaged":            s.packaged,
+		"agents":              agents,
+		"default_agent":       localAgent,
+		"default_output":      defaultOutput,
+		"default_signing_key": s.defaultSigningKey,
+		"tool_manifest":       toolManifest,
+		"trust_public_key":    trustPublicKey,
+		"demo_available":      demoAvailable,
+		"demo_job":            demoJob,
+		"demo_case_dir":       demoCase,
+		"demo_public_key":     demoPublicKey,
 	})
 }
 
@@ -283,6 +349,28 @@ func (s *uiServer) handleCancel(w http.ResponseWriter, r *http.Request) {
 	}
 	cancel()
 	writeJSON(w, http.StatusAccepted, map[string]string{"message": "İptal isteği gönderildi; güvenli cleanup beklenecek"})
+}
+
+func (s *uiServer) handleShutdown(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.mu.Lock()
+	running := s.status.Running
+	s.mu.Unlock()
+	if running {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "Önce çalışan işlemi güvenle durdurun"})
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"message": "IMAJER kapatılıyor"})
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		select {
+		case s.shutdown <- struct{}{}:
+		default:
+		}
+	}()
 }
 
 func (s *uiServer) saveJob(form uiJobForm) (string, string, error) {
@@ -565,6 +653,129 @@ func openBrowser(url string) error {
 		command, args = "xdg-open", []string{url}
 	}
 	return exec.Command(command, args...).Start()
+}
+
+func openRunningUI(listen string) bool {
+	if strings.HasSuffix(listen, ":0") {
+		return false
+	}
+	url := "http://" + listen
+	client := http.Client{Timeout: 750 * time.Millisecond}
+	response, err := client.Get(url + "/api/health")
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	var health map[string]string
+	if response.StatusCode != http.StatusOK || json.NewDecoder(response.Body).Decode(&health) != nil ||
+		health["application"] != "IMAJER" {
+		return false
+	}
+	return openBrowser(url) == nil
+}
+
+func resolveUIRuntime(executable string) (workingDir, resourceDir string, packaged bool, err error) {
+	executable, err = filepath.Abs(executable)
+	if err != nil {
+		return "", "", false, err
+	}
+	executableDir := filepath.Dir(executable)
+	resourceDir = executableDir
+	if runtime.GOOS == "darwin" && filepath.Base(executableDir) == "MacOS" {
+		contentsDir := filepath.Dir(executableDir)
+		candidate := filepath.Join(contentsDir, "Resources")
+		if filepath.Base(contentsDir) == "Contents" && directoryExists(filepath.Join(candidate, "agents")) {
+			resourceDir, packaged = candidate, true
+		}
+	} else if directoryExists(filepath.Join(executableDir, "agents")) {
+		resourceDir, packaged = executableDir, true
+	}
+	if !packaged {
+		workingDir, err = os.Getwd()
+		return workingDir, workingDir, false, err
+	}
+	configDir, configErr := os.UserConfigDir()
+	if configErr != nil {
+		return "", "", false, configErr
+	}
+	workingDir = filepath.Join(configDir, "IMAJER")
+	if err := os.MkdirAll(workingDir, 0o700); err != nil {
+		return "", "", false, fmt.Errorf("uygulama veri dizini oluştur: %w", err)
+	}
+	return workingDir, resourceDir, true, nil
+}
+
+func ensureExaminerKey(workingDir string) (privatePath, publicPath string, err error) {
+	keyDir := filepath.Join(workingDir, "keys")
+	privatePath = filepath.Join(keyDir, "examiner-private.pem")
+	publicPath = filepath.Join(keyDir, "examiner-public.pem")
+	if regularFileExists(privatePath) && regularFileExists(publicPath) {
+		return privatePath, publicPath, nil
+	}
+	if regularFileExists(publicPath) && !regularFileExists(privatePath) {
+		return "", "", errors.New("özel imza anahtarı eksik; mevcut açık anahtarın üzerine yazılmadı")
+	}
+	if err := os.MkdirAll(keyDir, 0o700); err != nil {
+		return "", "", err
+	}
+	if regularFileExists(privatePath) {
+		privatePEM, readErr := os.ReadFile(privatePath)
+		if readErr != nil {
+			return "", "", readErr
+		}
+		block, _ := pem.Decode(privatePEM)
+		if block == nil {
+			return "", "", errors.New("özel imza anahtarı PEM biçiminde değil")
+		}
+		parsed, parseErr := x509.ParsePKCS8PrivateKey(block.Bytes)
+		if parseErr != nil {
+			return "", "", fmt.Errorf("özel imza anahtarını ayrıştır: %w", parseErr)
+		}
+		privateKey, ok := parsed.(ed25519.PrivateKey)
+		if !ok {
+			return "", "", errors.New("özel imza anahtarı Ed25519 değil")
+		}
+		publicDER, marshalErr := x509.MarshalPKIXPublicKey(privateKey.Public())
+		if marshalErr != nil {
+			return "", "", marshalErr
+		}
+		publicPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: publicDER})
+		if err := evidence.AtomicWrite(publicPath, publicPEM, 0o644); err != nil {
+			return "", "", err
+		}
+		return privatePath, publicPath, nil
+	}
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return "", "", err
+	}
+	privateDER, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return "", "", err
+	}
+	publicDER, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return "", "", err
+	}
+	privatePEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateDER})
+	publicPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: publicDER})
+	if err := evidence.AtomicWrite(privatePath, privatePEM, 0o600); err != nil {
+		return "", "", err
+	}
+	if err := evidence.AtomicWrite(publicPath, publicPEM, 0o644); err != nil {
+		return "", "", err
+	}
+	return privatePath, publicPath, nil
+}
+
+func regularFileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
+}
+
+func directoryExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func absoluteFrom(base, path string) string {

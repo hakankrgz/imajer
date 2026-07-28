@@ -3,6 +3,9 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/ed25519"
+	"crypto/x509"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -127,6 +130,78 @@ func TestUIRejectsNonLocalHostHeader(t *testing.T) {
 	if response.Code != http.StatusNoContent || !called {
 		t.Fatalf("localhost Host was rejected: code=%d called=%v", response.Code, called)
 	}
+}
+
+func TestEnsureExaminerKeyCreatesAndRecoversPublicKey(t *testing.T) {
+	root := t.TempDir()
+	privatePath, publicPath, err := ensureExaminerKey(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateInfo, err := os.Stat(privatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if privateInfo.Mode().Perm()&0o077 != 0 {
+		t.Fatalf("private key permissions too broad: %o", privateInfo.Mode().Perm())
+	}
+	if err := os.Remove(publicPath); err != nil {
+		t.Fatal(err)
+	}
+	recoveredPrivate, recoveredPublic, err := ensureExaminerKey(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recoveredPrivate != privatePath || recoveredPublic != publicPath {
+		t.Fatalf("unexpected recovered paths: %s %s", recoveredPrivate, recoveredPublic)
+	}
+	privateKey := readTestPrivateKey(t, privatePath)
+	publicKey := readTestPublicKey(t, publicPath)
+	if !privateKey.Public().(ed25519.PublicKey).Equal(publicKey) {
+		t.Fatal("recovered public key does not match private key")
+	}
+}
+
+func readTestPrivateKey(t *testing.T, path string) ed25519.PrivateKey {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(raw)
+	if block == nil {
+		t.Fatal("private key is not PEM")
+	}
+	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, ok := parsed.(ed25519.PrivateKey)
+	if !ok {
+		t.Fatal("private key is not Ed25519")
+	}
+	return key
+}
+
+func readTestPublicKey(t *testing.T, path string) ed25519.PublicKey {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, _ := pem.Decode(raw)
+	if block == nil {
+		t.Fatal("public key is not PEM")
+	}
+	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, ok := parsed.(ed25519.PublicKey)
+	if !ok {
+		t.Fatal("public key is not Ed25519")
+	}
+	return key
 }
 
 func bufioNewScanner(reader *strings.Reader) *bufio.Scanner {

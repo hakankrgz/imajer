@@ -1,6 +1,7 @@
 let token = "";
 let defaults = {};
 let lastLogCount = -1;
+let lastTransport = "";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -39,6 +40,15 @@ function updateConditionalFields() {
   const port = $('[name="port"]');
   if (transport === "ssh" && (!port.value || port.value === "5986")) port.value = "22";
   if (transport === "winrm" && (!port.value || port.value === "22")) port.value = "5986";
+  if (transport !== lastTransport && defaults.agents) {
+    const recommended = transport === "ssh"
+      ? defaults.agents.linux_amd64
+      : transport === "winrm"
+        ? defaults.agents.windows_amd64
+        : defaults.agents.local;
+    if (recommended) $("#agentLocal").value = recommended;
+    lastTransport = transport;
+  }
 }
 
 function newJobPayload() {
@@ -129,11 +139,15 @@ async function pollStatus() {
 async function initialise() {
   defaults = await api("/api/config");
   token = defaults.token;
-  $("#existingJob").value = defaults.demo_job;
-  $("#verifyCaseDir").value = defaults.demo_case_dir;
-  $("#verifyPublicKey").value = defaults.demo_public_key;
+  $("#quickCard").classList.toggle("hidden", !defaults.demo_available);
+  $("#existingJob").value = defaults.demo_available ? defaults.demo_job : "";
+  $("#verifyCaseDir").value = defaults.demo_available ? defaults.demo_case_dir : "";
+  $("#verifyPublicKey").value = defaults.demo_available ? defaults.demo_public_key : "";
   $("#agentLocal").value = defaults.default_agent;
-  $('[name="output_directory"]').value = `${defaults.working_dir}/evidence`;
+  $('[name="output_directory"]').value = defaults.default_output || `${defaults.working_dir}/evidence`;
+  $('[name="signing_key"]').value = defaults.default_signing_key || "";
+  $('[name="tool_manifest"]').value = defaults.tool_manifest || "";
+  $('[name="trust_public_key"]').value = defaults.trust_public_key || "";
   updateConditionalFields();
   await pollStatus();
   setInterval(pollStatus, 700);
@@ -177,6 +191,17 @@ $("#cancelButton").addEventListener("click", async () => {
   try {
     const result = await api("/api/cancel", { method: "POST", body: "{}" });
     toast(result.message);
+  } catch (error) {
+    toast(error.message);
+  }
+});
+
+$("#shutdownButton").addEventListener("click", async () => {
+  try {
+    const result = await api("/api/shutdown", { method: "POST", body: "{}" });
+    $("#statusTitle").textContent = "Kapatılıyor";
+    toast(result.message);
+    setTimeout(() => window.close(), 500);
   } catch (error) {
     toast(error.message);
   }

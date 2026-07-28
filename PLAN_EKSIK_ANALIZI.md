@@ -1,8 +1,8 @@
 # Plan Uygunluk ve Eksik Analizi
 
 Tarih: 2026-07-28
-Revizyon: 3 — gerçek SSH laboratuvar testi eklendi
-Doğrulanan geliştirme sürümü: `0.3.0`
+Revizyon: 4 — native masaüstü dağıtım paketleri eklendi
+Doğrulanan geliştirme sürümü: `0.4.0`
 
 ## 1. Güncel sonuç
 
@@ -14,6 +14,14 @@ imzalı evidence index ve sonradan doğrulama akışlarıyla tamamlanmıştır.
 `0.3.0` ile localhost'a kapalı, CSRF token korumalı grafik web arayüzü
 eklenmiştir. Yeni vaka oluşturma, mevcut job ile discover/acquire/resume,
 rapor/cleanup, kanıt doğrulama ve canlı işlem kaydı tarayıcıdan yönetilebilir.
+
+`0.4.0` ile arayüz gerçek masaüstü paketine dönüştürülmüştür. Apple Silicon ve
+Intel Mac için ad-hoc imzalı `.app`; Windows x64 ve ARM64 için konsol
+göstermeden çalışan `.exe` paketleri üretilmektedir. Uygulama çift tıklamada
+arayüzü açar, paket içindeki doğru agent'ı seçer, kullanıcı verisini işletim
+sisteminin uygulama veri dizininde tutar ve ilk açılışta güvenli izinli Ed25519
+incelemeci anahtarını üretir. Aynı uygulamanın ikinci kez açılması yeni sunucu
+başlatmak yerine çalışan arayüzü öne getirir.
 
 İlk analizdeki beş P0 maddeden dördünün kod tarafı kapatılmıştır:
 
@@ -213,7 +221,17 @@ Arşivlenmiş özet: `test/remote-ssh/TEST_SONUCU.md`
 
 - Go 1.26.5, CGO kapalı build.
 - Controller: darwin amd64/arm64, windows amd64/arm64.
-- Agent: linux amd64/arm64, windows amd64.
+- Agent: darwin amd64/arm64, linux amd64/arm64, windows amd64/arm64.
+- Son kullanıcı paketleri: macOS Apple Silicon/Intel ve Windows x64/ARM64.
+- macOS `.app` bundle kimliği, plist, özel klasik ikon, ad-hoc code signature
+  ve paket sonrası `codesign --verify --deep --strict` doğrulaması.
+- Windows masaüstü binary'lerinde GUI subsystem; çift tıklamada konsol
+  penceresi açılmıyor.
+- Altı agent binary'si Ed25519 imzalı tool manifestinde; paket içindeki public
+  trust key ile manifest ve tüm artifact SHA-256 değerleri doğrulandı.
+- Dört dağıtım ZIP'i `SHA256SUMS` ile doğrulandı.
+- Bu Mac'te Finder `open IMAJER.app` eşdeğeri gerçek açılış, localhost health,
+  paket yolu seçimi, otomatik incelemeci anahtarı ve güvenli kapanış geçti.
 - `go test ./...`, `go test -race ./...` ve `go vet ./...` geçti.
 - `govulncheck v1.6.0` ile çağrılabilir güvenlik açığı bulunmadı. İlk taramada
   bulunan GO-2026-5543, `github.com/Azure/go-ntlmssp v0.1.1` yükseltmesiyle
@@ -325,14 +343,18 @@ Kalan:
 
 - APFS yerel regular-file E2E tamamlandı.
 - NTFS/exFAT gerçek büyük segment, disk-full, fsync ve atomic rename testi yok.
-- Cross-build binary'leri üretildi; Windows ve Linux hedeflerinde native
-  çalıştırma sonucu laboratuvar maddesidir.
+- Apple Silicon masaüstü `.app` bu Mac'te native ve gerçek çift tıklama
+  akışıyla doğrulandı.
+- Intel Mac ile Windows x64/ARM64 paketleri doğru native executable
+  mimarisinde üretildi; bu diğer işletim sistemlerinde gerçek açılış sonucu
+  hâlâ laboratuvar maddesidir.
 
-### P2-06 — Lisans/SBOM/provenance
+### P2-06 — Lisans/SBOM/provenance ve platform imzalama
 
 CI'da sabitlenmiş `govulncheck v1.6.0` taraması ve deterministic double-build
-vardır. Dependency license scanner, SBOM, SLSA/provenance ve imzalı release
-artifact yayın akışı henüz yoktur.
+vardır. Agent paketinin Ed25519 tool manifesti ve dağıtım ZIP checksum'ları
+vardır. Dependency license scanner, SBOM, SLSA/provenance, Apple Developer ID
+notarization ve Windows Authenticode imzalama henüz yoktur.
 
 ## 6. Güncel kabul kararı
 

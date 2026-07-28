@@ -1,0 +1,48 @@
+name: desktop-packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Paket sürümü
+        required: true
+        default: 0.4.0
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: 1.26.5
+          cache: true
+      - name: Tool release anahtarını hazırla
+        env:
+          TOOL_RELEASE_PRIVATE_PEM: ${{ secrets.TOOL_RELEASE_PRIVATE_PEM }}
+        run: |
+          if [ -z "$TOOL_RELEASE_PRIVATE_PEM" ]; then
+            echo "Repository secret TOOL_RELEASE_PRIVATE_PEM tanımlı değil." >&2
+            exit 1
+          fi
+          install -d -m 700 "$RUNNER_TEMP/imajer-release-keys"
+          printf '%s\n' "$TOOL_RELEASE_PRIVATE_PEM" >"$RUNNER_TEMP/imajer-release-keys/tool-release-private.pem"
+          chmod 600 "$RUNNER_TEMP/imajer-release-keys/tool-release-private.pem"
+      - name: Test
+        run: go test ./...
+      - name: Masaüstü paketlerini üret
+        env:
+          IMAJER_RELEASE_KEY_DIR: ${{ runner.temp }}/imajer-release-keys
+          VERSION: ${{ inputs.version }}
+        run: make desktop-packages VERSION="$VERSION"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: IMAJER-desktop-${{ inputs.version }}
+          path: |
+            dist/packages/*.zip
+            dist/packages/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30

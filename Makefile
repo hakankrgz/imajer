@@ -3,7 +3,7 @@ VERSION ?= dev
 DIST := dist
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: test vet build cross reproducible demo clean
+.PHONY: test vet build cross reproducible desktop-packages demo clean
 
 test:
 	$(GO) test ./...
@@ -21,9 +21,15 @@ cross:
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/imajer-darwin-arm64 ./cmd/imajer
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/imajer-windows-amd64.exe ./cmd/imajer
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/imajer-windows-arm64.exe ./cmd/imajer
+	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/imajer-agent-darwin-amd64 ./cmd/imajer-agent
+	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/imajer-agent-darwin-arm64 ./cmd/imajer-agent
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/imajer-agent-linux-amd64 ./cmd/imajer-agent
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/imajer-agent-linux-arm64 ./cmd/imajer-agent
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/imajer-agent-windows-amd64.exe ./cmd/imajer-agent
+	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(DIST)/imajer-agent-windows-arm64.exe ./cmd/imajer-agent
+
+desktop-packages:
+	GO="$(GO)" VERSION="$(VERSION)" ./packaging/package-desktop.sh
 
 reproducible:
 	@imajer_tmp=$$(mktemp -d); \

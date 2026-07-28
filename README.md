@@ -4,9 +4,10 @@
 verisini hedefte imaj/staging dosyası oluşturmadan yerel kanıt deposuna aktaran
 bir adli edinim aracıdır.
 
-Kod veya YAML ile uğraşmadan kullanmak için macOS'ta
-`IMAJER-ARAYUZ.command`, Windows'ta `IMAJER-ARAYUZ-WINDOWS.cmd` dosyasına çift
-tıklayın. Kısa arayüz rehberi:
+Kod veya YAML ile uğraşmadan kullanmak için macOS'ta `IMAJER.app`, Windows'ta
+`IMAJER.exe` dosyasına çift tıklayın. Apple Silicon, Intel Mac, Windows x64 ve
+Windows ARM64 paketleri `dist/packages/` altında üretilir. Masaüstü kurulum
+rehberi: [`MASAUSTU_KULLANIM.md`](MASAUSTU_KULLANIM.md). Kısa arayüz rehberi:
 [`ARAYUZ_KULLANIMI.md`](ARAYUZ_KULLANIMI.md).
 
 Adım adım kurulum, job örnekleri, SSH/WinRM kullanımı, resume, verify ve
@@ -35,7 +36,8 @@ Go 1.26.5 gereklidir.
 make test
 make vet
 make reproducible
-make cross VERSION=0.1.0
+make cross VERSION=0.4.0
+make desktop-packages VERSION=0.4.0
 ```
 
 Üretilen controller hedefleri:
@@ -54,10 +56,30 @@ Derleme çıktıları `dist/` altına yazılır ve kaynak kontrolüne eklenmez. 
 release paketi yayımlandığında sağlanan `SHA256SUMS` dosyasıyla binary
 bütünlüğü ayrıca doğrulanmalıdır.
 
+`desktop-packages` hedefi şu son kullanıcı paketlerini üretir:
+
+- `IMAJER-macOS-Apple-Silicon-<sürüm>.zip`
+- `IMAJER-macOS-Intel-<sürüm>.zip`
+- `IMAJER-Windows-x64-<sürüm>.zip`
+- `IMAJER-Windows-ARM64-<sürüm>.zip`
+- paketlerin SHA-256 değerlerini içeren `SHA256SUMS`
+
+Tam `.app` ve Windows ZIP paketleme hedefi macOS üzerinde çalıştırılır.
+macOS uygulaması ad-hoc imzalanır. Başka Mac'lerde uyarısız dağıtım için Apple
+Developer ID ve notarization; Windows SmartScreen uyarısını kaldırmak için
+Authenticode sertifikası gerekir. Agent binary'leri paket oluşturulurken ayrı
+Ed25519 tool-release anahtarıyla imzalanan manifest üzerinden doğrulanır; özel
+release anahtarı pakete dahil edilmez.
+
+GitHub'daki manuel `desktop-packages` workflow'u aynı dört paketi üretir.
+Çalıştırılmadan önce PKCS#8 Ed25519 özel anahtarı repository secret olarak
+`TOOL_RELEASE_PRIVATE_PEM` adıyla tanımlanmalıdır. Workflow anahtarı loga veya
+artifact'e eklemez.
+
 Kaynak koddan yerel demo hazırlamak için:
 
 ```sh
-make demo VERSION=0.3.0
+make demo VERSION=0.4.0
 ```
 
 ## Anahtarlar ve imzalı araç paketi
