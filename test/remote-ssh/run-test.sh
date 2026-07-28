@@ -11,6 +11,13 @@ CONTAINER_NAME="imajer-remote-e2e"
 IMAGE_NAME="imajer-remote-e2e:local"
 SSH_PORT="${IMAJER_TEST_SSH_PORT:-22222}"
 
+cleanup() {
+  if test "${IMAJER_TEST_KEEP_CONTAINER:-0}" != "1"; then
+    docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT INT TERM
+
 need() {
   command -v "$1" >/dev/null 2>&1 || {
     echo "HATA: '$1' komutu bulunamadı." >&2
@@ -47,6 +54,7 @@ cp "$SCRIPT_DIR/Dockerfile" "$CONTEXT_DIR/Dockerfile"
 cp "$SCRIPT_DIR/sshd_config" "$CONTEXT_DIR/sshd_config"
 cp "$AGENT_BINARY" "$RUN_DIR/imajer-agent-linux-$AGENT_ARCH"
 SIGNED_AGENT="$RUN_DIR/imajer-agent-linux-$AGENT_ARCH"
+IMAJER_VERSION=$("$PROJECT_DIR/dist/imajer" version)
 
 ssh-keygen -q -t ed25519 -N "" -C "imajer-e2e-$RUN_ID" -f "$RUN_DIR/ssh-client"
 cp "$RUN_DIR/ssh-client.pub" "$CONTEXT_DIR/authorized_keys"
@@ -61,7 +69,7 @@ chmod 0600 "$RUN_DIR/ssh-client" "$RUN_DIR/tool-release-private.pem" "$RUN_DIR/e
 
 cat > "$RUN_DIR/tools.yaml" <<EOF
 - name: imajer-agent
-  version: "0.3.0"
+  version: "$IMAJER_VERSION"
   os: linux
   arch: $AGENT_ARCH
   path: $SIGNED_AGENT
@@ -112,8 +120,8 @@ ssh \
   -o IdentitiesOnly=yes \
   -o StrictHostKeyChecking=yes \
   -o UserKnownHostsFile="$RUN_DIR/known_hosts" \
-  -p "$SSH_PORT" root@127.0.0.1 \
-  "uname -a"
+  -p "$SSH_PORT" forensic@127.0.0.1 \
+  "uname -a && test \"\$(sudo -n id -u)\" = 0"
 
 cat > "$RUN_DIR/job.yaml" <<EOF
 case:
@@ -129,7 +137,7 @@ target:
   transport: ssh
   host: 127.0.0.1
   port: $SSH_PORT
-  user: root
+  user: forensic
   private_key: $RUN_DIR/ssh-client
   known_hosts: $RUN_DIR/known_hosts
 
@@ -162,18 +170,56 @@ retry:
 EOF
 
 echo
-echo "1/3 DISCOVER"
+echo "1/5 NEGATIVE: HOST-KEY DEĞİŞİMİ REDDEDİLİYOR"
+ssh-keygen -q -t ed25519 -N "" -f "$RUN_DIR/wrong-host-key"
+{
+  printf '[127.0.0.1]:%s ' "$SSH_PORT"
+  awk '{print $1 " " $2}' "$RUN_DIR/wrong-host-key.pub"
+} > "$RUN_DIR/wrong-known_hosts"
+sed "s|known_hosts: $RUN_DIR/known_hosts|known_hosts: $RUN_DIR/wrong-known_hosts|" \
+  "$RUN_DIR/job.yaml" > "$RUN_DIR/wrong-host-key-job.yaml"
+if "$PROJECT_DIR/dist/imajer" discover --job "$RUN_DIR/wrong-host-key-job.yaml" \
+  >"$RUN_DIR/wrong-host-key.log" 2>&1; then
+  echo "HATA: Değişmiş SSH host key kabul edildi." >&2
+  exit 1
+fi
+grep -Eiq 'knownhosts|host key|key mismatch|eşleş' "$RUN_DIR/wrong-host-key.log" || {
+  echo "HATA: Host-key reddi beklenen nedenle olmadı." >&2
+  cat "$RUN_DIR/wrong-host-key.log" >&2
+  exit 1
+}
+
+echo
+echo "2/5 NEGATIVE: YANLIŞ DİSK KİMLİĞİ REDDEDİLİYOR"
+sed \
+  -e 's/id: CASE-SSH-E2E/id: CASE-SSH-NEGATIVE/' \
+  -e 's/evidence_id: EVID-DISK-001/evidence_id: EVID-DISK-NEGATIVE/' \
+  -e 's/id: source.raw/id: definitely-wrong-disk/' \
+  "$RUN_DIR/job.yaml" > "$RUN_DIR/wrong-disk-job.yaml"
+if "$PROJECT_DIR/dist/imajer" discover --job "$RUN_DIR/wrong-disk-job.yaml" \
+  >"$RUN_DIR/wrong-disk.log" 2>&1; then
+  echo "HATA: Yanlış disk kimliği kabul edildi." >&2
+  exit 1
+fi
+grep -q 'does not match target identifiers' "$RUN_DIR/wrong-disk.log" || {
+  echo "HATA: Disk kimliği reddi beklenen nedenle olmadı." >&2
+  cat "$RUN_DIR/wrong-disk.log" >&2
+  exit 1
+}
+
+echo
+echo "3/5 DISCOVER (UBUNTU + PAROLASIZ SUDO)"
 "$PROJECT_DIR/dist/imajer" discover --job "$RUN_DIR/job.yaml" | tee "$RUN_DIR/discover.log"
 
 echo
-echo "2/3 ACQUIRE"
+echo "4/5 ACQUIRE"
 "$PROJECT_DIR/dist/imajer" acquire --job "$RUN_DIR/job.yaml" 2>&1 | tee "$RUN_DIR/acquire.log"
 
 CASE_DIR="$RUN_DIR/evidence/CASE-SSH-E2E/EVID-DISK-001"
 ARTIFACT_DIR="$CASE_DIR/artifacts/disk"
 
 echo
-echo "3/3 VERIFY"
+echo "5/5 VERIFY"
 "$PROJECT_DIR/dist/imajer" verify \
   --case-dir "$CASE_DIR" \
   --public-key "$RUN_DIR/examiner-public.pem" | tee "$RUN_DIR/verify.log"
@@ -197,9 +243,14 @@ ln -sfn "$RUN_DIR" "$RUNTIME_DIR/latest"
 
 echo
 echo "TEST BAŞARILI"
+echo "Hedef        : Ubuntu 24.04 / $AGENT_ARCH / passwordless sudo"
 echo "Uzak SHA-256 : $REMOTE_HASH"
 echo "Yerel SHA-256: $LOCAL_HASH"
 echo "Job          : $RUN_DIR/job.yaml"
 echo "Kanıt dizini : $CASE_DIR"
-echo "Container    : $CONTAINER_NAME (127.0.0.1:$SSH_PORT)"
-echo "Durdurmak için: docker rm -f $CONTAINER_NAME"
+if test "${IMAJER_TEST_KEEP_CONTAINER:-0}" = "1"; then
+  echo "Container    : $CONTAINER_NAME (127.0.0.1:$SSH_PORT)"
+  echo "Durdurmak için: docker rm -f $CONTAINER_NAME"
+else
+  echo "Container    : test sonunda otomatik kaldırılacak"
+fi

@@ -205,8 +205,25 @@ func (c *Controller) Prepare(ctx context.Context) error {
 			c.AgentPath, c.agentUploaded = remote, true
 			actual, err := c.remoteHash(ctx, remote)
 			if err == nil && strings.EqualFold(actual, agentArtifact.SHA256) {
-				uploadErr = nil
-				break
+				// A successful upload does not prove that the mount permits
+				// execution. Hardened Ubuntu systems may mount /dev/shm with
+				// noexec, so test the candidate before committing to it and
+				// fall back to /tmp when necessary.
+				stdout, stderr, execErr := c.run(ctx, []string{remote, "version"})
+				if execErr == nil && strings.TrimSpace(stdout) != "" {
+					uploadErr = nil
+					break
+				}
+				if execErr == nil {
+					execErr = errors.New("agent execution returned an empty version")
+				}
+				uploadErr = errors.Join(uploadErr, fmt.Errorf(
+					"candidate %s is not executable: %w: %s",
+					remote, execErr, strings.TrimSpace(stderr),
+				))
+				_ = c.Transport.Remove(ctx, remote)
+				c.AgentPath, c.agentUploaded = "", false
+				continue
 			}
 			if err == nil {
 				err = errors.New("uploaded agent hash mismatch")

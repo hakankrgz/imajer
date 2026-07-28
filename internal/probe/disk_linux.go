@@ -3,8 +3,10 @@
 package probe
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -35,11 +37,18 @@ func IdentifyDisk(path string) (DiskIdentity, error) {
 	if err != nil {
 		sector = 512
 	}
-	serial := readText(filepath.Join(sys, "device", "serial"))
-	model := readText(filepath.Join(sys, "device", "model"))
-	wwid := readText(filepath.Join(sys, "device", "wwid"))
+	sysSerial := readText(filepath.Join(sys, "device", "serial"))
+	cid := readText(filepath.Join(sys, "device", "cid"))
+	sysModel := readText(filepath.Join(sys, "device", "model"))
+	deviceName := readText(filepath.Join(sys, "device", "name"))
+	sysWWID := readText(filepath.Join(sys, "device", "wwid"))
+	lsblkModel, lsblkSerial, lsblkWWN := lsblkIdentity(resolved)
+	model, serial, _, alternateIDs := mergeLinuxDeviceMetadata(
+		sysSerial, cid, sysModel, deviceName, sysWWID,
+		lsblkModel, lsblkSerial, lsblkWWN,
+	)
 	ids := []string{path, resolved}
-	for _, value := range []string{serial, wwid} {
+	for _, value := range alternateIDs {
 		if value != "" {
 			ids = append(ids, value)
 		}
@@ -54,6 +63,37 @@ func IdentifyDisk(path string) (DiskIdentity, error) {
 		Path: resolved, IDs: uniqueStrings(ids), Serial: serial, Model: model,
 		Size: sizeSectors * 512, SectorSize: sector,
 	}, nil
+}
+
+func lsblkIdentity(path string) (model, serial, wwn string) {
+	output, err := exec.Command(
+		"lsblk", "-b", "-J", "-d", "-o", "MODEL,SERIAL,WWN", path,
+	).Output()
+	if err != nil {
+		return "", "", ""
+	}
+	var envelope struct {
+		BlockDevices []struct {
+			Model  json.RawMessage `json:"model"`
+			Serial json.RawMessage `json:"serial"`
+			WWN    json.RawMessage `json:"wwn"`
+		} `json:"blockdevices"`
+	}
+	if json.Unmarshal(output, &envelope) != nil || len(envelope.BlockDevices) != 1 {
+		return "", "", ""
+	}
+	text := func(raw json.RawMessage) string {
+		if len(raw) == 0 || string(raw) == "null" {
+			return ""
+		}
+		var value string
+		if json.Unmarshal(raw, &value) == nil {
+			return strings.TrimSpace(value)
+		}
+		return strings.Trim(strings.TrimSpace(string(raw)), `"`)
+	}
+	row := envelope.BlockDevices[0]
+	return text(row.Model), text(row.Serial), text(row.WWN)
 }
 
 func readInt(path string) (int64, error) {

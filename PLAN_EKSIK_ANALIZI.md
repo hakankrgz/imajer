@@ -1,8 +1,8 @@
 # Plan Uygunluk ve Eksik Analizi
 
 Tarih: 2026-07-29
-Revizyon: 7 — okunabilir canlı kayıt ve kalıcı işlem sonuç özeti
-Doğrulanan geliştirme sürümü: `0.6.1`
+Revizyon: 8 — native yol seçimi, görünür hash karşılaştırması ve Ubuntu ARM64 SSH kabul testi
+Doğrulanan geliştirme sürümü: `0.6.2`
 
 ## 1. Güncel sonuç
 
@@ -58,6 +58,20 @@ sonunda doğrulama adımı; verify sonunda imaj bütünlüğü ve imza sonucu a�
 gösterilir. Arka uç her işlem sonuna makine çıktısından bağımsız `SONUÇ`,
 UTC bitiş zamanı ve toplam süre satırları ekler.
 
+`0.6.2` ile yerel dosya ve klasör yolu isteyen alanlara macOS ve Windows native
+seçim penceresi bağlanmıştır. Edinim/verify sonucunda artifact, byte, chunk,
+segment ve oturum sayıları; uzak agent session SHA-256, yerel controller
+session SHA-256, bağımsız yerel mantıksal SHA-256 ve Merkle root ayrı bir
+bütünlük panelinde gösterilir. Kesintisiz edinimde uzak tam akış ile bağımsız
+yerel yeniden okuma açıkça karşılaştırılır. Resume edilmiş disklerde tek uzak
+tam kaynak hash'i varmış gibi gösterilmez; her oturum ayrı karşılaştırılır.
+
+Aynı sürümde Linux envanteri root yanında `sudo -n` yetkisini de tanır.
+Raspberry Pi SD/eMMC hedefleri için `mmcblk` path fallback'i, CID/name kimliği,
+bağlı bölüm uyarısı ve ARM64 RAM/LiME sınırlaması eklenmiştir. `/dev/shm`
+`noexec` ise agent hash doğrulamasından sonra gerçek çalıştırma testi başarısız
+olur, dosya temizlenir ve `/tmp` adayına geçilir.
+
 İlk analizdeki beş P0 maddeden dördünün kod tarafı kapatılmıştır:
 
 - Gerçek transport nesnesini yeniden oluşturan reconnect ve disk offset-resume.
@@ -67,7 +81,10 @@ UTC bitiş zamanı ve toplam süre satırları ekler.
 
 Kalan tek P0, ayrıcalıklı uzak sistem ve gerçek filesystem kabul matrisidir.
 Bu matrisin Linux arm64 üzerinde gerçek TCP/SSH/SFTP ve regular-file streaming
-alt maddesi 2026-07-28 tarihinde Docker Linux hedefiyle başarıyla çalıştırıldı.
+alt maddesi 2026-07-28 tarihinde Ubuntu 24.04 ARM64 hedef, root olmayan kullanıcı
+ve parolasız sudo ile başarıyla çalıştırıldı. Değişmiş SSH host-key ve yanlış
+disk ID reddi, signed agent, doğrudan streaming, üç seviyeli hash doğrulaması
+ve uzak cleanup aynı koşuda geçti.
 Raw block device, RAM provider, bağlantı kopması ve diğer işletim sistemi/dosya
 sistemi varyantları hâlâ bekliyor.
 Bu madde kaynak kodla kapatılamaz; yetkili Linux/Windows VM'leri, raw disk,
@@ -277,6 +294,12 @@ Arşivlenmiş özet: `test/remote-ssh/TEST_SONUCU.md`
   “İMAJ DOĞRULANDI” ile “İMZA GEÇERLİ” rozetleri görsel olarak doğrulandı.
   Canlı kaydın büyük yazısı, 420 px varsayılan yüksekliği, satır sayacı ve
   kalıcı `SONUÇ`/bitiş/süre satırları doğrulandı.
+- `0.6.2` Ubuntu 24.04 ARM64 SSH/SFTP E2E testinde root olmayan `forensic`
+  hesabı ve `sudo -n` ile çalıştı. Değişmiş host-key ile yanlış disk kimliği
+  reddedildi. Üç adet 8 MiB chunk sonunda uzak ve yerel SHA-256
+  `95aeaae03b56c171cf88753c821630a3c24f1fcf406cec3e17d56781aa3f8369`
+  olarak eşleşti; `verified_continuous`, `PACKAGE_INTEGRITY_OK` ve geçici uzak
+  dosya kalıntısı olmaması doğrulandı. Test container'ı otomatik kaldırıldı.
 - Windows masaüstü binary'lerinde GUI subsystem; çift tıklamada konsol
   penceresi veya normal tarayıcı sekmesi açılmıyor.
 - Altı agent binary'si Ed25519 imzalı tool manifestinde; paket içindeki public

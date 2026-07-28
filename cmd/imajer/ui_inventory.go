@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -28,18 +29,22 @@ type uiInventory struct {
 	OS         string   `json:"os"`
 	Arch       string   `json:"arch"`
 	Admin      bool     `json:"admin"`
+	Privilege  string   `json:"privilege,omitempty"`
 	Disks      []uiDisk `json:"disks"`
 	AgentLocal string   `json:"agent_local"`
 	Warnings   []string `json:"warnings,omitempty"`
 }
 
 type uiDisk struct {
-	Path       string `json:"path"`
-	ID         string `json:"id"`
-	Serial     string `json:"serial,omitempty"`
-	Model      string `json:"model,omitempty"`
-	Size       int64  `json:"size"`
-	SectorSize int64  `json:"sector_size"`
+	Path        string   `json:"path"`
+	ID          string   `json:"id"`
+	Serial      string   `json:"serial,omitempty"`
+	Model       string   `json:"model,omitempty"`
+	Size        int64    `json:"size"`
+	SectorSize  int64    `json:"sector_size"`
+	StableID    bool     `json:"stable_id"`
+	Mounted     bool     `json:"mounted"`
+	Mountpoints []string `json:"mountpoints,omitempty"`
 }
 
 type commandResult struct {
@@ -326,10 +331,21 @@ func (s *uiServer) handleInventory(w http.ResponseWriter, r *http.Request) {
 	}
 	inventory.AgentLocal = agentPath
 	if !inventory.Admin {
-		inventory.Warnings = append(inventory.Warnings, "Hedef oturumunda yönetici/root yetkisi doğrulanamadı")
+		inventory.Warnings = append(inventory.Warnings, "Root veya parolasız sudo doğrulanamadı; edinim başlamadan önce 'sudo -n true' çalışmalıdır")
 	}
 	if len(inventory.Disks) == 0 {
 		inventory.Warnings = append(inventory.Warnings, "Hedefte seçilebilir fiziksel disk bulunamadı")
+	}
+	if inventory.OS == "linux" && inventory.Arch == "arm64" {
+		inventory.Warnings = append(inventory.Warnings, "Raspberry Pi/ARM64 disk edinimi desteklenir; RAM edinimi için hedef çekirdekle birebir uyumlu, imzalı LiME modülü gerekir")
+	}
+	for _, disk := range inventory.Disks {
+		if !disk.StableID {
+			inventory.Warnings = append(inventory.Warnings, disk.Path+" seri/WWN bildirmiyor; kimlik yol, model, boyut ve sektör bilgisiyle doğrulanacak")
+		}
+		if disk.Mounted {
+			inventory.Warnings = append(inventory.Warnings, disk.Path+" bağlı dosya sistemleri içeriyor; canlı disk edinimi tek bir atomik zamanı temsil etmez")
+		}
 	}
 	writeJSON(w, http.StatusOK, inventory)
 }
@@ -423,8 +439,19 @@ func collectSSHInventory(ctx context.Context, connection transport.Transport) (u
 		return uiInventory{}, fmt.Errorf("hostname sorgusu: %w", err)
 	}
 	uidRaw, _, uidErr := runTransportCommand(ctx, connection, []string{"id", "-u"})
+	admin := uidErr == nil && strings.TrimSpace(string(uidRaw)) == "0"
+	privilege := "unprivileged"
+	if admin {
+		privilege = "root"
+	} else {
+		sudoRaw, _, sudoErr := runTransportCommand(ctx, connection, []string{"sudo", "-n", "id", "-u"})
+		if sudoErr == nil && strings.TrimSpace(string(sudoRaw)) == "0" {
+			admin = true
+			privilege = "passwordless_sudo"
+		}
+	}
 	storageRaw, stderr, err := runTransportCommand(ctx, connection, []string{
-		"lsblk", "-b", "-J", "-d", "-o", "NAME,PATH,MODEL,SERIAL,WWN,SIZE,LOG-SEC,TYPE",
+		"lsblk", "-b", "-J", "-o", "NAME,PATH,MODEL,SERIAL,WWN,SIZE,LOG-SEC,TYPE,MOUNTPOINT",
 	})
 	if err != nil {
 		return uiInventory{}, fmt.Errorf("lsblk: %w: %s", err, strings.TrimSpace(string(stderr)))
@@ -434,11 +461,12 @@ func collectSSHInventory(ctx context.Context, connection transport.Transport) (u
 		return uiInventory{}, err
 	}
 	return uiInventory{
-		Hostname: strings.TrimSpace(string(hostRaw)),
-		OS:       "linux",
-		Arch:     normalizeArchitecture(string(archRaw)),
-		Admin:    uidErr == nil && strings.TrimSpace(string(uidRaw)) == "0",
-		Disks:    disks,
+		Hostname:  strings.TrimSpace(string(hostRaw)),
+		OS:        "linux",
+		Arch:      normalizeArchitecture(string(archRaw)),
+		Admin:     admin,
+		Privilege: privilege,
+		Disks:     disks,
 	}, nil
 }
 
@@ -484,17 +512,20 @@ func readLimited(reader io.Reader, result chan<- commandResult) {
 }
 
 func parseLSBLKDisks(raw []byte) ([]uiDisk, error) {
+	type lsblkRow struct {
+		Name       json.RawMessage `json:"name"`
+		Path       json.RawMessage `json:"path"`
+		Model      json.RawMessage `json:"model"`
+		Serial     json.RawMessage `json:"serial"`
+		WWN        json.RawMessage `json:"wwn"`
+		Size       json.RawMessage `json:"size"`
+		SectorSize json.RawMessage `json:"log-sec"`
+		Type       json.RawMessage `json:"type"`
+		Mountpoint json.RawMessage `json:"mountpoint"`
+		Children   []lsblkRow      `json:"children"`
+	}
 	var envelope struct {
-		BlockDevices []struct {
-			Name       json.RawMessage `json:"name"`
-			Path       json.RawMessage `json:"path"`
-			Model      json.RawMessage `json:"model"`
-			Serial     json.RawMessage `json:"serial"`
-			WWN        json.RawMessage `json:"wwn"`
-			Size       json.RawMessage `json:"size"`
-			SectorSize json.RawMessage `json:"log-sec"`
-			Type       json.RawMessage `json:"type"`
-		} `json:"blockdevices"`
+		BlockDevices []lsblkRow `json:"blockdevices"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return nil, fmt.Errorf("lsblk JSON ayrıştırma: %w", err)
@@ -510,9 +541,10 @@ func parseLSBLKDisks(raw []byte) ([]uiDisk, error) {
 			path = "/dev/" + name
 		}
 		serial := rawText(row.Serial)
+		wwn := rawText(row.WWN)
 		stableID := serial
 		if stableID == "" {
-			stableID = rawText(row.WWN)
+			stableID = wwn
 		}
 		if stableID == "" {
 			stableID = path
@@ -525,9 +557,22 @@ func parseLSBLKDisks(raw []byte) ([]uiDisk, error) {
 		if path == "" || size <= 0 {
 			continue
 		}
+		var mountpoints []string
+		var collectMountpoints func(lsblkRow)
+		collectMountpoints = func(current lsblkRow) {
+			if mountpoint := strings.TrimSpace(rawText(current.Mountpoint)); mountpoint != "" {
+				mountpoints = append(mountpoints, mountpoint)
+			}
+			for _, child := range current.Children {
+				collectMountpoints(child)
+			}
+		}
+		collectMountpoints(row)
+		sort.Strings(mountpoints)
 		disks = append(disks, uiDisk{
 			Path: path, ID: stableID, Serial: serial, Model: rawText(row.Model),
-			Size: size, SectorSize: sector,
+			Size: size, SectorSize: sector, Mounted: len(mountpoints) > 0,
+			Mountpoints: mountpoints, StableID: serial != "" || wwn != "",
 		})
 	}
 	return disks, nil
@@ -579,6 +624,7 @@ func parseWindowsInventory(raw []byte) (uiInventory, error) {
 		inventory.Disks = append(inventory.Disks, uiDisk{
 			Path: row.Path, ID: id, Serial: strings.TrimSpace(row.Serial),
 			Model: strings.TrimSpace(row.Model), Size: row.Size, SectorSize: sector,
+			StableID: strings.TrimSpace(row.Serial) != "",
 		})
 	}
 	return inventory, nil

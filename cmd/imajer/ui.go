@@ -46,21 +46,23 @@ type uiServer struct {
 	defaultPublicKey  string
 	defaultKnownHosts string
 	packaged          bool
+	browsePath        browsePathFunc
 	cancel            context.CancelFunc
 	shutdown          chan struct{}
 	status            uiStatus
 }
 
 type uiStatus struct {
-	Running    bool      `json:"running"`
-	Action     string    `json:"action,omitempty"`
-	StartedAt  time.Time `json:"started_at,omitempty"`
-	FinishedAt time.Time `json:"finished_at,omitempty"`
-	Success    bool      `json:"success"`
-	Message    string    `json:"message,omitempty"`
-	JobPath    string    `json:"job_path,omitempty"`
-	CaseDir    string    `json:"case_dir,omitempty"`
-	Logs       []string  `json:"logs"`
+	Running    bool                `json:"running"`
+	Action     string              `json:"action,omitempty"`
+	StartedAt  time.Time           `json:"started_at,omitempty"`
+	FinishedAt time.Time           `json:"finished_at,omitempty"`
+	Success    bool                `json:"success"`
+	Message    string              `json:"message,omitempty"`
+	JobPath    string              `json:"job_path,omitempty"`
+	CaseDir    string              `json:"case_dir,omitempty"`
+	Logs       []string            `json:"logs"`
+	Integrity  *uiIntegritySummary `json:"integrity,omitempty"`
 }
 
 type uiRunRequest struct {
@@ -152,12 +154,14 @@ func runUI(ctx context.Context, args []string) error {
 		defaultPublicKey:  defaultPublicKey,
 		defaultKnownHosts: defaultKnownHosts,
 		packaged:          packaged, shutdown: make(chan struct{}, 1),
-		status: uiStatus{Message: "Hazır", Logs: []string{}},
+		browsePath: browseNativePath,
+		status:     uiStatus{Message: "Hazır", Logs: []string{}},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", server.handleHealth)
 	mux.HandleFunc("/api/config", server.handleConfig)
 	mux.HandleFunc("/api/status", server.handleStatus)
+	mux.HandleFunc("/api/browse", server.requireToken(server.handleBrowse))
 	mux.HandleFunc("/api/ssh-host-key", server.requireToken(server.handleSSHHostKey))
 	mux.HandleFunc("/api/inventory", server.requireToken(server.handleInventory))
 	mux.HandleFunc("/api/run", server.requireToken(server.handleRun))
@@ -173,8 +177,10 @@ func runUI(ctx context.Context, args []string) error {
 		Handler:           localhostOnly(securityHeaders(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		// A native file dialog may legitimately remain open while the operator
+		// navigates a large evidence volume.
+		WriteTimeout: 10 * time.Minute,
+		IdleTimeout:  60 * time.Second,
 	}
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
@@ -651,10 +657,16 @@ func (s *uiServer) appendLog(line string) {
 
 func (s *uiServer) finishOperation(err error) {
 	s.mu.Lock()
+	caseDir := s.status.CaseDir
+	s.mu.Unlock()
+	integrity, integrityErr := loadUIIntegrity(caseDir)
+
+	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.status.Running = false
 	s.status.FinishedAt = time.Now().UTC()
 	s.status.Success = err == nil
+	s.status.Integrity = integrity
 	s.status.Logs = append(s.status.Logs, "------------------------------------------------------------")
 	if err == nil {
 		s.status.Message = "İşlem başarıyla tamamlandı"
@@ -672,6 +684,9 @@ func (s *uiServer) finishOperation(err error) {
 		"Bitiş: "+s.status.FinishedAt.Format(time.RFC3339),
 		"Toplam süre: "+duration.String(),
 	)
+	if integrityErr != nil {
+		s.status.Logs = append(s.status.Logs, "Bütünlük özeti okunamadı: "+redactUI(integrityErr.Error()))
+	}
 	s.cancel = nil
 }
 

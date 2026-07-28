@@ -1,6 +1,6 @@
 # IMAJER Kullanım Kılavuzu
 
-Bu kılavuz `imajer 0.6.1` geliştirme sürümünün kurulmasını, vaka
+Bu kılavuz `imajer 0.6.2` geliştirme sürümünün kurulmasını, vaka
 yapılandırmasını, uzak hedefin keşfedilmesini, RAM/disk edinimini, kesinti
 sonrası devam etmeyi ve kanıt paketini doğrulamayı anlatır.
 
@@ -43,6 +43,59 @@ Temel komutlar:
   --public-key /guvenli-konum/examiner-public.pem
 ```
 
+### 1.1. Masaüstü uygulamasında basit kullanım
+
+1. `IMAJER.app` veya Windows'ta `IMAJER.exe` dosyasına çift tıklayın.
+2. **Yeni işlem oluştur** sekmesini açın ve vaka bilgilerini doldurun.
+3. **Linux / SSH** seçin; Raspberry Pi IP adresini ve kullanıcı adını yazın.
+4. Anahtar, kanıt klasörü veya başka bir yerel yol gerektiğinde **Gözat…** ya
+   da **Klasör seç…** düğmesini kullanın. Uzak `/dev/mmcblk0` gibi disk
+   yollarını elle yazmayın.
+5. **Bağlan ve diskleri getir** düğmesine basın. İlk bağlantıda gösterilen SSH
+   fingerprint'i Raspberry Pi üzerinde `ssh-keygen -lf
+   /etc/ssh/ssh_host_ed25519_key.pub` çıktısıyla karşılaştırın.
+6. Model, boyut ve cihaz yolunu kontrol ederek fiziksel diski listeden açıkça
+   seçin. `[BAĞLI/SİSTEM]` uyarısı, diskin canlı olarak değişebileceğini
+   belirtir.
+7. Önce **Bilgileri kontrol et**, sonra **İmajı başlat** düğmesine basın.
+8. İşlem bittiğinde sağ taraftaki **Bütünlük karşılaştırmaları** alanında uzak
+   ve yerel SHA-256 değerlerinin **EŞLEŞİYOR** olduğunu kontrol edin.
+9. Son olarak **Kanıt doğrula** sekmesinde vaka klasörünü seçip **Kanıtı
+   doğrula** düğmesine basın. `İMAJ DOĞRULANDI` ve `İMZA GEÇERLİ` rozetlerinin
+   ikisi de görünmelidir.
+
+### 1.2. Raspberry Pi Ubuntu sunum hazırlığı
+
+Raspberry Pi üzerinde Ubuntu ARM64, SSH ve `lsblk` bulunmalıdır. Kullanacağınız
+hesap root değilse IMAJER'in etkileşimsiz yeniden bağlanabilmesi için sunum
+süresince parolasız sudo gerekir:
+
+```sh
+sudo apt update
+sudo apt install -y openssh-server sudo util-linux
+sudo systemctl enable --now ssh
+echo 'KULLANICI_ADI ALL=(root) NOPASSWD: ALL' | \
+  sudo tee /etc/sudoers.d/imajer-demo
+sudo chmod 0440 /etc/sudoers.d/imajer-demo
+sudo visudo -cf /etc/sudoers.d/imajer-demo
+sudo -n id -u
+uname -m
+hostname -I
+lsblk -b -o NAME,PATH,MODEL,SERIAL,WWN,SIZE,LOG-SEC,TYPE,MOUNTPOINT
+```
+
+`sudo -n id -u` çıktısı `0`, `uname -m` çıktısı `aarch64` olmalıdır. Sunum
+sonunda geçici yetkiyi kaldırın:
+
+```sh
+sudo rm /etc/sudoers.d/imajer-demo
+```
+
+ARM64 disk edinimi native agent ile desteklenir. ARM64 RAM edinimi yalnız
+Raspberry Pi'nin çalışan çekirdeğiyle birebir uyumlu, imzalı LiME modülü
+hazırlanmışsa kullanılmalıdır; sınıf sunumunda böyle bir modül yoksa **Tüm
+disk** profilini seçin.
+
 ## 2. Desteklenen binary'ler
 
 `dist/` dizininde aşağıdaki geliştirme binary'leri bulunur:
@@ -82,14 +135,14 @@ Yerel build:
 ```sh
 make test
 make vet
-make build VERSION=0.6.1
+make build VERSION=0.6.2
 ```
 
 Tüm hedefler:
 
 ```sh
-make reproducible VERSION=0.6.1
-make cross VERSION=0.6.1
+make reproducible VERSION=0.6.2
+make cross VERSION=0.6.2
 ```
 
 Derlemelerde CGO kapalıdır. Ürünler `dist/` altına yazılır.
@@ -148,7 +201,7 @@ tool-bundle/
 
 ```yaml
 - name: imajer-agent
-  version: "0.6.1"
+  version: "0.6.2"
   os: linux
   arch: amd64
   path: ./imajer-agent-linux-amd64

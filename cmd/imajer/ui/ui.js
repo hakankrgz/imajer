@@ -111,7 +111,19 @@ function selectDisk(index) {
   const details = document.createElement("span");
   details.textContent =
     `${disk.path} · ${formatBytes(disk.size)} · ID: ${disk.serial || disk.id || "yok"} · Sektör: ${disk.sector_size || 512} B`;
-  summary.replaceChildren(title, details);
+  const children = [title, details];
+  if (disk.mounted) {
+    const warning = document.createElement("em");
+    const mounts = (disk.mountpoints || []).join(", ");
+    warning.textContent = `Dikkat: Bu disk çalışan sistemde bağlı${mounts ? ` (${mounts})` : ""}. İmaj alınırken içeriği değişebilir.`;
+    children.push(warning);
+  }
+  if (!disk.stable_id) {
+    const warning = document.createElement("em");
+    warning.textContent = "Bu aygıt seri/WWN bildirmiyor; Raspberry Pi SD kartlarında normaldir. Resume kimliği yol + model + boyut + sektör ile denetlenir.";
+    children.push(warning);
+  }
+  summary.replaceChildren(...children);
   summary.classList.remove("hidden");
 }
 
@@ -174,11 +186,17 @@ async function scanTarget() {
     inventoryDisks.forEach((disk, index) => {
       const option = document.createElement("option");
       option.value = String(index);
-      option.textContent = `${disk.model || disk.path} — ${formatBytes(disk.size)} — ID: ${disk.serial || disk.id || "yok"} — ${disk.path}`;
+      option.textContent = `${disk.mounted ? "[BAĞLI/SİSTEM] " : ""}${disk.model || disk.path} — ${formatBytes(disk.size)} — ID: ${disk.serial || disk.id || "yok"} — ${disk.path}`;
       select.appendChild(option);
     });
     if (inventory.agent_local) $("#agentLocal").value = inventory.agent_local;
-    const privilege = inventory.admin ? "yönetici/root hazır" : "yönetici/root doğrulanamadı";
+    const privilege = inventory.privilege === "passwordless_sudo"
+      ? "parolasız sudo hazır"
+      : inventory.privilege === "root"
+        ? "root hazır"
+        : inventory.admin
+          ? "yönetici hazır"
+          : "root/parolasız sudo yok";
     $("#targetScanStatus").textContent =
       `${inventory.hostname || target.host} · ${inventory.os}/${inventory.arch} · ${inventoryDisks.length} disk · ${privilege}`;
     if ((inventory.warnings || []).length) toast(inventory.warnings.join(" · "));
@@ -290,6 +308,124 @@ function latestUsefulLog(logs) {
   return "";
 }
 
+function integrityStatusLabel(value) {
+  return {
+    verified_continuous: "KESİNTİSİZ DOĞRULANDI",
+    chunk_verified_composite: "CHUNK DOĞRULAMALI BİLEŞİK",
+    incomplete: "TAMAMLANMADI",
+    failed: "BAŞARISIZ",
+    running: "DEVAM EDİYOR"
+  }[value] || (value || "BİLİNMİYOR").toLocaleUpperCase("tr-TR");
+}
+
+function hashComparisonRow(label, remote, local, match, remoteLabel = "Uzak SHA-256", localLabel = "Yerel SHA-256") {
+  const row = document.createElement("div");
+  row.className = "hash-comparison";
+  const title = document.createElement("b");
+  title.textContent = label;
+  const state = document.createElement("span");
+  state.className = match ? "hash-match" : "hash-mismatch";
+  state.textContent = match ? "EŞLEŞİYOR" : "EŞLEŞMİYOR";
+  const remoteName = document.createElement("small");
+  remoteName.textContent = remoteLabel;
+  const remoteHash = document.createElement("code");
+  remoteHash.textContent = remote || "—";
+  const localName = document.createElement("small");
+  localName.textContent = localLabel;
+  const localHash = document.createElement("code");
+  localHash.textContent = local || "—";
+  row.append(title, state, remoteName, remoteHash, localName, localHash);
+  return row;
+}
+
+function singleHashRow(label, hash) {
+  const row = document.createElement("div");
+  row.className = "single-hash";
+  const title = document.createElement("small");
+  title.textContent = label;
+  const code = document.createElement("code");
+  code.textContent = hash || "—";
+  row.append(title, code);
+  return row;
+}
+
+function renderIntegrity(status) {
+  const panel = $("#integrityPanel");
+  const container = $("#integrityArtifacts");
+  const summary = status.integrity;
+  const artifacts = summary?.artifacts || [];
+  if (!artifacts.length) {
+    panel.classList.add("hidden");
+    container.replaceChildren();
+    return;
+  }
+  let allValid = true;
+  const cards = artifacts.map(artifact => {
+    const card = document.createElement("article");
+    card.className = "integrity-artifact";
+    const heading = document.createElement("div");
+    heading.className = "integrity-artifact-heading";
+    const name = document.createElement("b");
+    name.textContent = `${artifact.kind === "ram" ? "RAM" : "Disk"} · ${artifact.artifact_id}`;
+    const state = document.createElement("span");
+    state.textContent = integrityStatusLabel(artifact.status);
+    heading.append(name, state);
+    const facts = document.createElement("p");
+    facts.textContent = `${formatBytes(artifact.received_size)} / ${formatBytes(artifact.source_size)} · ${artifact.chunks} chunk · ${artifact.segments} parça · ${artifact.sessions?.length || 0} oturum`;
+    card.append(heading, facts);
+
+    if (artifact.remote_full_sha256) {
+      card.append(hashComparisonRow(
+        "Kesintisiz tam akış karşılaştırması",
+        artifact.remote_full_sha256,
+        artifact.logical_sha256,
+        artifact.continuous_match,
+        "Agent uzak tam akış SHA-256",
+        "Yerel bağımsız yeniden okuma SHA-256"
+      ));
+      allValid = allValid && artifact.continuous_match;
+    } else {
+      const note = document.createElement("p");
+      note.className = "integrity-note";
+      note.textContent = artifact.resumed
+        ? "Bağlantı kesilip devam edildiği için tek bir uzak tam kaynak hash’i iddia edilmez. Aşağıdaki her oturum ayrı doğrulanmıştır."
+        : "Bu artifact için kesintisiz uzak tam akış hash’i yoktur; yerel birleşim ve oturum hash’leri gösterilir.";
+      card.append(note);
+      if (artifact.status === "failed" || artifact.status === "incomplete") allValid = false;
+    }
+    card.append(singleHashRow("Yerel mantıksal birleşim SHA-256", artifact.logical_sha256));
+    card.append(singleHashRow("Sıralı chunk Merkle root", artifact.merkle_root));
+
+    if (artifact.sessions?.length) {
+      const sessions = document.createElement("details");
+      sessions.className = "session-comparisons";
+      sessions.open = artifact.sessions.length <= 3;
+      const sessionsTitle = document.createElement("summary");
+      sessionsTitle.textContent = `Oturum hash karşılaştırmaları (${artifact.sessions.length})`;
+      sessions.append(sessionsTitle);
+      artifact.sessions.forEach((session, index) => {
+        sessions.append(hashComparisonRow(
+          `Oturum ${index + 1} · ofset ${session.start_offset}–${session.end_offset} · ${formatBytes(session.bytes)}`,
+          session.remote_sha256,
+          session.local_sha256,
+          session.match,
+          "Agent oturum SHA-256",
+          "Denetleyici oturum SHA-256"
+        ));
+        allValid = allValid && session.match;
+      });
+      card.append(sessions);
+    } else if (artifact.status === "verified_continuous" || artifact.status === "chunk_verified_composite") {
+      allValid = false;
+    }
+    return card;
+  });
+  container.replaceChildren(...cards);
+  $("#integrityOverall").textContent = allValid ? "HASH’LER EŞLEŞİYOR" : "DİKKAT GEREKİYOR";
+  $("#integrityOverall").className = allValid ? "hash-match" : "hash-mismatch";
+  panel.classList.remove("hidden");
+}
+
 function renderResult(status) {
   const panel = $("#resultPanel");
   const heading = $("#resultHeading");
@@ -298,6 +434,7 @@ function renderResult(status) {
   const badges = $("#resultBadges");
   const logs = status.logs || [];
   const logText = logs.join("\n");
+  renderIntegrity(status);
   badges.replaceChildren();
   panel.className = "result-panel";
 
@@ -415,8 +552,39 @@ async function initialise() {
   setInterval(pollStatus, 700);
 }
 
+async function browseForPath(button) {
+  const target = $(button.dataset.browseTarget);
+  if (!target) throw new Error("Yol alanı bulunamadı");
+  const original = button.textContent;
+  button.disabled = true;
+  button.textContent = "Açılıyor…";
+  try {
+    const result = await api("/api/browse", {
+      method: "POST",
+      body: JSON.stringify({ kind: button.dataset.browseKind || "file" })
+    });
+    if (result.canceled) return;
+    if (!result.path) throw new Error("Seçilen yol okunamadı");
+    target.value = result.path;
+    target.title = result.path;
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+    toast(button.dataset.browseKind === "directory" ? "Klasör seçildi." : "Dosya seçildi.");
+  } finally {
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
 $$(".tab").forEach(button => button.addEventListener("click", () => switchTab(button.dataset.tab)));
 $$('input[name="transport"], input[name="profile"]').forEach(input => input.addEventListener("change", updateConditionalFields));
+$$(".browse-button").forEach(button => button.addEventListener("click", async () => {
+  try {
+    await browseForPath(button);
+  } catch (error) {
+    toast(error.message);
+  }
+}));
 $("#diskSelect").addEventListener("change", event => {
   if (event.target.value === "") {
     clearSelectedDisk();

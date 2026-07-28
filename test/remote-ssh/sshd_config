@@ -5,14 +5,14 @@ Protocol 2
 HostKey /etc/ssh/ssh_host_ed25519_key
 HostKey /etc/ssh/ssh_host_rsa_key
 
-PermitRootLogin prohibit-password
+PermitRootLogin no
 PubkeyAuthentication yes
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitEmptyPasswords no
 AuthorizedKeysFile .ssh/authorized_keys
 StrictModes yes
-AllowUsers root
+AllowUsers forensic
 
 UsePAM no
 X11Forwarding no

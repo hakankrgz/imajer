@@ -7,6 +7,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"net"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/hakankrgz/imajer/internal/config"
+	"github.com/hakankrgz/imajer/internal/evidence"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
@@ -164,12 +166,130 @@ func TestParseLSBLKDisks(t *testing.T) {
 	if len(disks) != 2 {
 		t.Fatalf("got %d disks, want 2: %#v", len(disks), disks)
 	}
-	if disks[0].ID != "SER-1" || disks[0].SectorSize != 4096 {
+	if disks[0].ID != "SER-1" || disks[0].SectorSize != 4096 || !disks[0].StableID {
 		t.Fatalf("unexpected first disk: %#v", disks[0])
 	}
 	if disks[1].Path != "/dev/nvme0n1" || disks[1].ID != "WWN-2" ||
-		disks[1].Size != 3000000000 {
+		disks[1].Size != 3000000000 || !disks[1].StableID {
 		t.Fatalf("unexpected second disk: %#v", disks[1])
+	}
+}
+
+func TestParseLSBLKRaspberryPiMountedDisk(t *testing.T) {
+	raw := []byte(`{
+		"blockdevices": [{
+			"name":"mmcblk0","path":"/dev/mmcblk0","model":"SD64G",
+			"serial":null,"wwn":null,"size":"62537072640","log-sec":"512",
+			"type":"disk","mountpoint":null,
+			"children":[
+				{"name":"mmcblk0p1","path":"/dev/mmcblk0p1","type":"part","mountpoint":"/boot/firmware"},
+				{"name":"mmcblk0p2","path":"/dev/mmcblk0p2","type":"part","mountpoint":"/"}
+			]
+		}]
+	}`)
+	disks, err := parseLSBLKDisks(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(disks) != 1 {
+		t.Fatalf("got %d disks, want 1", len(disks))
+	}
+	disk := disks[0]
+	if disk.Path != "/dev/mmcblk0" || disk.ID != "/dev/mmcblk0" || disk.StableID || !disk.Mounted ||
+		strings.Join(disk.Mountpoints, ",") != "/,/boot/firmware" {
+		t.Fatalf("unexpected Raspberry Pi disk: %#v", disk)
+	}
+}
+
+func TestUILoadIntegrityDistinguishesContinuousAndComposite(t *testing.T) {
+	caseDir := t.TempDir()
+	hashA := strings.Repeat("a", 64)
+	hashB := strings.Repeat("b", 64)
+	writeArtifact := func(id string, state evidence.State, sessions []evidence.SessionRecord) {
+		t.Helper()
+		dir := filepath.Join(caseDir, "artifacts", id)
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		manifest := uiArtifactManifest{
+			Version: 1, State: state, Segments: []any{map[string]any{"path": id + ".001"}}, Chunks: 2,
+		}
+		raw, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "artifact-manifest.json"), raw, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		for _, session := range sessions {
+			raw, err := json.Marshal(session)
+			if err != nil {
+				t.Fatal(err)
+			}
+			file, err := os.OpenFile(filepath.Join(dir, "sessions.jsonl"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := file.Write(append(raw, '\n')); err != nil {
+				file.Close()
+				t.Fatal(err)
+			}
+			if err := file.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	writeArtifact("disk", evidence.State{
+		ArtifactID: "disk", Kind: "disk", Status: evidence.StatusVerifiedContinuous,
+		Verification: string(evidence.StatusVerifiedContinuous), SourceSize: 16, NextOffset: 16,
+		LogicalSHA256: hashA, RemoteStreamHash: hashA, MerkleRoot: hashB,
+	}, []evidence.SessionRecord{{ID: "s1", Bytes: 16, RemoteSHA256: hashA, LocalSHA256: hashA}})
+	writeArtifact("disk-resumed", evidence.State{
+		ArtifactID: "disk-resumed", Kind: "disk", Status: evidence.StatusChunkVerifiedComposite,
+		Verification: string(evidence.StatusChunkVerifiedComposite), SourceSize: 16, NextOffset: 16,
+		LogicalSHA256: hashB, RemoteStreamHash: hashA, MerkleRoot: hashA, Resumed: true,
+	}, []evidence.SessionRecord{{ID: "s2", Bytes: 8, RemoteSHA256: hashB, LocalSHA256: hashB}})
+
+	summary, err := loadUIIntegrity(caseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary == nil || len(summary.Artifacts) != 2 {
+		t.Fatalf("unexpected integrity summary: %#v", summary)
+	}
+	var continuous, composite uiArtifactIntegrity
+	for _, artifact := range summary.Artifacts {
+		if artifact.ArtifactID == "disk" {
+			continuous = artifact
+		} else {
+			composite = artifact
+		}
+	}
+	if continuous.RemoteFullSHA256 != hashA || !continuous.ContinuousMatch {
+		t.Fatalf("continuous comparison missing: %#v", continuous)
+	}
+	if composite.RemoteFullSHA256 != "" || !composite.Sessions[0].Match {
+		t.Fatalf("composite incorrectly claims a full remote hash: %#v", composite)
+	}
+}
+
+func TestUIBrowseHandlerUsesNativePickerResult(t *testing.T) {
+	server := &uiServer{
+		token: "token",
+		browsePath: func(_ context.Context, kind string) (string, bool, error) {
+			if kind != "directory" {
+				t.Fatalf("unexpected kind %q", kind)
+			}
+			return "/evidence/case", false, nil
+		},
+	}
+	handler := server.requireToken(server.handleBrowse)
+	request := httptest.NewRequest(http.MethodPost, "/api/browse", strings.NewReader(`{"kind":"directory"}`))
+	request.Header.Set("X-Imajer-Token", "token")
+	response := httptest.NewRecorder()
+	handler(response, request)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "/evidence/case") {
+		t.Fatalf("unexpected browse response: code=%d body=%s", response.Code, response.Body.String())
 	}
 }
 
