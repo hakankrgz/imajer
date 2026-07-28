@@ -5,9 +5,11 @@ verisini hedefte imaj/staging dosyası oluşturmadan yerel kanıt deposuna aktar
 bir adli edinim aracıdır.
 
 Kod veya YAML ile uğraşmadan kullanmak için macOS'ta `IMAJER.app`, Windows'ta
-`IMAJER.exe` dosyasına çift tıklayın. Apple Silicon, Intel Mac, Windows x64 ve
-Windows ARM64 paketleri `dist/packages/` altında üretilir. Masaüstü kurulum
-rehberi: [`MASAUSTU_KULLANIM.md`](MASAUSTU_KULLANIM.md). Kısa arayüz rehberi:
+`IMAJER.exe` dosyasına çift tıklayın. Arayüz Safari, Chrome veya normal bir
+tarayıcı sekmesi açmadan IMAJER'in kendi penceresinde çalışır. Apple Silicon,
+Intel Mac, Windows x64 ve Windows ARM64 paketleri `dist/packages/` altında
+üretilir. Masaüstü kurulum rehberi:
+[`MASAUSTU_KULLANIM.md`](MASAUSTU_KULLANIM.md). Kısa arayüz rehberi:
 [`ARAYUZ_KULLANIMI.md`](ARAYUZ_KULLANIMI.md).
 
 Adım adım kurulum, job örnekleri, SSH/WinRM kullanımı, resume, verify ve
@@ -36,8 +38,8 @@ Go 1.26.5 gereklidir.
 make test
 make vet
 make reproducible
-make cross VERSION=0.4.0
-make desktop-packages VERSION=0.4.0
+make cross VERSION=0.5.0
+make desktop-packages VERSION=0.5.0
 ```
 
 Üretilen controller hedefleri:
@@ -79,7 +81,7 @@ artifact'e eklemez.
 Kaynak koddan yerel demo hazırlamak için:
 
 ```sh
-make demo VERSION=0.4.0
+make demo VERSION=0.5.0
 ```
 
 ## Anahtarlar ve imzalı araç paketi

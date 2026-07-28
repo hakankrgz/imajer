@@ -164,7 +164,19 @@ func runUI(ctx context.Context, args []string) error {
 	}
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
-		if openRunningUI(*listen) {
+		var opener func(string) error
+		switch {
+		case *noOpen:
+			opener = func(string) error { return nil }
+		case desktopWindowMode == "true":
+			opener = func(url string) error {
+				_, openErr := openDesktopWindow(url, workingDir)
+				return openErr
+			}
+		default:
+			opener = openBrowser
+		}
+		if openRunningUI(*listen, opener) {
 			return nil
 		}
 		return err
@@ -173,10 +185,14 @@ func runUI(ctx context.Context, args []string) error {
 	fmt.Println("IMAJER arayüzü:", url)
 	fmt.Println("Kapatmak için Ctrl+C")
 	if !*noOpen {
-		go func() {
-			time.Sleep(250 * time.Millisecond)
-			_ = openBrowser(url)
-		}()
+		if desktopWindowMode == "true" {
+			go server.launchDesktopWindow(url)
+		} else {
+			go func() {
+				time.Sleep(250 * time.Millisecond)
+				_ = openBrowser(url)
+			}()
+		}
 	}
 	go func() {
 		select {
@@ -655,7 +671,7 @@ func openBrowser(url string) error {
 	return exec.Command(command, args...).Start()
 }
 
-func openRunningUI(listen string) bool {
+func openRunningUI(listen string, opener func(string) error) bool {
 	if strings.HasSuffix(listen, ":0") {
 		return false
 	}
@@ -671,7 +687,74 @@ func openRunningUI(listen string) bool {
 		health["application"] != "IMAJER" {
 		return false
 	}
-	return openBrowser(url) == nil
+	return opener(url) == nil
+}
+
+func (s *uiServer) launchDesktopWindow(url string) {
+	time.Sleep(250 * time.Millisecond)
+	command, err := openDesktopWindow(url, s.workingDir)
+	if err != nil {
+		s.appendLog("Masaüstü penceresi açılamadı: " + err.Error())
+		s.mu.Lock()
+		s.status.Message = "Masaüstü penceresi açılamadı"
+		s.mu.Unlock()
+		select {
+		case s.shutdown <- struct{}{}:
+		default:
+		}
+		return
+	}
+	if err := command.Wait(); err != nil {
+		s.appendLog("Masaüstü penceresi kapandı: " + err.Error())
+	}
+	select {
+	case s.shutdown <- struct{}{}:
+	default:
+	}
+}
+
+func openDesktopWindow(url, workingDir string) (*exec.Cmd, error) {
+	if runtime.GOOS != "windows" {
+		return nil, fmt.Errorf("native olmayan masaüstü kabuğu %s üzerinde desteklenmiyor", runtime.GOOS)
+	}
+	edgePath, err := findEdgeExecutable()
+	if err != nil {
+		return nil, err
+	}
+	profileDir := filepath.Join(workingDir, "window-profile")
+	if err := os.MkdirAll(profileDir, 0o700); err != nil {
+		return nil, fmt.Errorf("pencere profili oluştur: %w", err)
+	}
+	command := exec.Command(edgePath,
+		"--app="+url,
+		"--user-data-dir="+profileDir,
+		"--no-first-run",
+		"--no-default-browser-check",
+		"--disable-background-mode",
+		"--disable-extensions",
+		"--disable-sync",
+	)
+	if err := command.Start(); err != nil {
+		return nil, fmt.Errorf("IMAJER penceresini başlat: %w", err)
+	}
+	return command, nil
+}
+
+func findEdgeExecutable() (string, error) {
+	if path, err := exec.LookPath("msedge.exe"); err == nil {
+		return path, nil
+	}
+	candidates := []string{
+		filepath.Join(os.Getenv("ProgramFiles"), "Microsoft", "Edge", "Application", "msedge.exe"),
+		filepath.Join(os.Getenv("ProgramFiles(x86)"), "Microsoft", "Edge", "Application", "msedge.exe"),
+		filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "Edge", "Application", "msedge.exe"),
+	}
+	for _, candidate := range candidates {
+		if regularFileExists(candidate) {
+			return candidate, nil
+		}
+	}
+	return "", errors.New("Microsoft Edge bulunamadı; IMAJER masaüstü penceresi açılamıyor")
 }
 
 func resolveUIRuntime(executable string) (workingDir, resourceDir string, packaged bool, err error) {

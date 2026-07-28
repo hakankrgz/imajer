@@ -8,8 +8,8 @@ Uygulamalar klasöründe şu uygulamaya çift tıklayın:
 IMAJER.app
 ```
 
-Tarayıcı otomatik açılmazsa Safari veya Chrome'a
-`http://127.0.0.1:8765` adresini yazın.
+Arayüz Safari veya Chrome'da değil, doğrudan IMAJER uygulama penceresinde
+açılır.
 
 ## Windows
 
@@ -20,6 +20,7 @@ IMAJER.exe
 ```
 
 x64 ve ARM64 için ayrı hazır paketler bulunur.
+IMAJER, sekme ve adres çubuğu olmayan ayrı uygulama penceresi açar.
 
 ## İlk deneme
 
@@ -52,7 +53,8 @@ dosyasını seçip **Devam et** düğmesine basın.
 
 ## Güvenlik
 
-- Arayüz yalnız `127.0.0.1` üzerinde çalışır.
+- Uygulama penceresinin arka ucu yalnız `127.0.0.1` üzerinde çalışır ve ağa
+  yayınlanmaz.
 - Aynı anda yalnız bir işlem başlatılabilir.
 - Parola arayüz sürecinin belleğinde tutulur; job, log veya rapora yazılmaz.
 - **İşlemi güvenle durdur** düğmesi acquisition sürecine iptal sinyali gönderir

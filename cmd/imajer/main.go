@@ -30,8 +30,9 @@ import (
 )
 
 var (
-	version     = "dev"
-	desktopMode = "false"
+	version           = "dev"
+	desktopMode       = "false"
+	desktopWindowMode = "false"
 )
 
 func main() {

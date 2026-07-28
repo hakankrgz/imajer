@@ -162,6 +162,22 @@ func TestEnsureExaminerKeyCreatesAndRecoversPublicKey(t *testing.T) {
 	}
 }
 
+func TestFindEdgeExecutableFromPath(t *testing.T) {
+	binDir := t.TempDir()
+	edgePath := filepath.Join(binDir, "msedge.exe")
+	if err := os.WriteFile(edgePath, []byte("test"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir)
+	got, err := findEdgeExecutable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != edgePath {
+		t.Fatalf("got %q want %q", got, edgePath)
+	}
+}
+
 func readTestPrivateKey(t *testing.T, path string) ed25519.PrivateKey {
 	t.Helper()
 	raw, err := os.ReadFile(path)

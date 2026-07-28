@@ -1,8 +1,8 @@
 # Plan Uygunluk ve Eksik Analizi
 
 Tarih: 2026-07-28
-Revizyon: 4 — native masaüstü dağıtım paketleri eklendi
-Doğrulanan geliştirme sürümü: `0.4.0`
+Revizyon: 5 — tarayıcı sekmesi native uygulama penceresiyle değiştirildi
+Doğrulanan geliştirme sürümü: `0.5.0`
 
 ## 1. Güncel sonuç
 
@@ -22,6 +22,14 @@ arayüzü açar, paket içindeki doğru agent'ı seçer, kullanıcı verisini i�
 sisteminin uygulama veri dizininde tutar ve ilk açılışta güvenli izinli Ed25519
 incelemeci anahtarını üretir. Aynı uygulamanın ikinci kez açılması yeni sunucu
 başlatmak yerine çalışan arayüzü öne getirir.
+
+`0.5.0` ile macOS'ta varsayılan tarayıcı açma kaldırılmış, AppKit içindeki
+native `WKWebView` penceresine geçilmiştir. Go controller aynı `.app` içinde
+ayrı `imajer-core` süreci olarak çalışır; pencere kapanınca arka uç da kontrollü
+biçimde sonlandırılır. Windows'ta controller, Microsoft Edge'i normal tarayıcı
+sekmesi olarak değil; ayrı kullanıcı profiline sahip, sekmesiz ve adres
+çubuksuz uygulama penceresi olarak başlatır. Pencere kapanınca yerel servis de
+kapanır.
 
 İlk analizdeki beş P0 maddeden dördünün kod tarafı kapatılmıştır:
 
@@ -225,8 +233,13 @@ Arşivlenmiş özet: `test/remote-ssh/TEST_SONUCU.md`
 - Son kullanıcı paketleri: macOS Apple Silicon/Intel ve Windows x64/ARM64.
 - macOS `.app` bundle kimliği, plist, özel klasik ikon, ad-hoc code signature
   ve paket sonrası `codesign --verify --deep --strict` doğrulaması.
+- macOS Apple Silicon ve Intel için Swift/AppKit + `WKWebView` native pencere
+  kabuğu; tarayıcı uygulaması başlatılmıyor.
+- Kurulu `/Applications/IMAJER.app` üzerinde CoreGraphics ile ekranda
+  `IMAJER — Adli İmaj Alma` adlı 1240×852 pencere, `0.5.0` health cevabı ve
+  kapatma sonrası hem pencere hem `imajer-core` sürecinin sonlandığı doğrulandı.
 - Windows masaüstü binary'lerinde GUI subsystem; çift tıklamada konsol
-  penceresi açılmıyor.
+  penceresi veya normal tarayıcı sekmesi açılmıyor.
 - Altı agent binary'si Ed25519 imzalı tool manifestinde; paket içindeki public
   trust key ile manifest ve tüm artifact SHA-256 değerleri doğrulandı.
 - Dört dağıtım ZIP'i `SHA256SUMS` ile doğrulandı.

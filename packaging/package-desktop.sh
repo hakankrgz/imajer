@@ -3,7 +3,7 @@ set -eu
 
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 GO_BIN=${GO:-go}
-VERSION=${VERSION:-0.4.0}
+VERSION=${VERSION:-0.5.0}
 DIST_DIR="$PROJECT_DIR/dist"
 BUILD_DIR="$DIST_DIR/package-build"
 PACKAGE_DIR="$DIST_DIR/packages"
@@ -11,7 +11,7 @@ AGENT_DIR="$BUILD_DIR/common/agents"
 KEY_DIR=${IMAJER_RELEASE_KEY_DIR:-"$PROJECT_DIR/.release-keys"}
 SIGN_TOOL="$BUILD_DIR/sign-tool"
 BASE_LDFLAGS="-s -w -X main.version=$VERSION"
-DESKTOP_LDFLAGS="$BASE_LDFLAGS -X main.desktopMode=true"
+DESKTOP_LDFLAGS="$BASE_LDFLAGS -X main.desktopMode=true -X main.desktopWindowMode=true"
 
 if [ "$(uname -s)" != Darwin ]; then
   echo "Tam masaüstü paketleme macOS üzerinde çalıştırılmalıdır." >&2
@@ -53,6 +53,29 @@ build_agent() {
   echo "Agent: $target_os/$target_arch"
   CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" "$GO_BIN" build \
     -buildvcs=false -trimpath -ldflags "$BASE_LDFLAGS" -o "$output" "$PROJECT_DIR/cmd/imajer-agent"
+}
+
+build_macos_shell() {
+  target_arch=$1
+  output=$2
+  swift_arch=$target_arch
+  if [ "$target_arch" = amd64 ]; then
+    swift_arch=x86_64
+  fi
+  sdk_path=${IMAJER_MACOS_SDK:-$(xcrun --sdk macosx --show-sdk-path)}
+  compatible_clt_sdk=/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk
+  if [ -z "${IMAJER_MACOS_SDK:-}" ] && [ -d "$compatible_clt_sdk" ]; then
+    sdk_path=$compatible_clt_sdk
+  fi
+  module_cache="$BUILD_DIR/swift-module-cache"
+  mkdir -p "$module_cache"
+  echo "Native macOS window: $target_arch"
+  CLANG_MODULE_CACHE_PATH="$module_cache" SWIFT_MODULECACHE_PATH="$module_cache" \
+    xcrun swiftc -O -swift-version 5 \
+    -target "$swift_arch-apple-macos11.0" \
+    -sdk "$sdk_path" \
+    -framework Cocoa -framework WebKit \
+    -o "$output" "$PROJECT_DIR/packaging/macos/IMAJERApp.swift"
 }
 
 echo "IMAJER Desktop $VERSION paketleri hazırlanıyor..."
@@ -135,7 +158,8 @@ make_macos_package() {
   app="$stage/IMAJER.app"
   mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/agents" \
     "$app/Contents/Resources/bin" "$app/Contents/Resources/docs"
-  build_controller darwin "$arch" "$app/Contents/MacOS/IMAJER" desktop
+  build_macos_shell "$arch" "$app/Contents/MacOS/IMAJER"
+  build_controller darwin "$arch" "$app/Contents/MacOS/imajer-core" cli
   build_controller darwin "$arch" "$app/Contents/Resources/bin/imajer-cli" cli
   cp "$PROJECT_DIR/packaging/macos/Info.plist" "$app/Contents/Info.plist"
   sed -i '' "s/__VERSION__/$VERSION/g" "$app/Contents/Info.plist"
@@ -143,7 +167,8 @@ make_macos_package() {
   cp "$AGENT_DIR"/* "$app/Contents/Resources/agents/"
   cp "$PROJECT_DIR/MASAUSTU_KULLANIM.md" "$app/Contents/Resources/docs/"
   cp "$PROJECT_DIR/LICENSE" "$app/Contents/Resources/"
-  chmod 755 "$app/Contents/MacOS/IMAJER" "$app/Contents/Resources/bin/imajer-cli"
+  chmod 755 "$app/Contents/MacOS/IMAJER" "$app/Contents/MacOS/imajer-core" \
+    "$app/Contents/Resources/bin/imajer-cli"
   codesign --force --deep --sign - "$app"
   codesign --verify --deep --strict "$app"
   ditto -c -k --sequesterRsrc --keepParent "$app" \
@@ -165,7 +190,7 @@ IMAJER $VERSION
 
 1. Bu ZIP dosyasını tamamen çıkarın.
 2. IMAJER.exe dosyasına çift tıklayın.
-3. Arayüz varsayılan tarayıcınızda açılır.
+3. IMAJER sekmesiz ve adres çubuksuz kendi penceresinde açılır.
 
 Ayrıntılar için docs/MASAUSTU_KULLANIM.md dosyasını okuyun.
 EOF

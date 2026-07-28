@@ -1,14 +1,15 @@
 # IMAJER Masaüstü Kullanımı
 
 IMAJER masaüstü paketi Terminal veya YAML kullanmadan, çift tıklayarak
-çalıştırılabilir. Arayüz yalnız bu bilgisayardaki `127.0.0.1` adresinde açılır;
-internete yayınlanmaz.
+çalıştırılabilir. Safari, Chrome veya normal bir tarayıcı sekmesi açılmaz.
+Arayüz IMAJER'in kendi penceresinde gösterilir. Yerel arka uç yalnız bu
+bilgisayardaki `127.0.0.1` adresini dinler; internete yayınlanmaz.
 
 ## Bu Mac'te
 
 1. `IMAJER.app` dosyasını **Uygulamalar** klasörüne taşıyın.
 2. Uygulamalar içinden **IMAJER** simgesine çift tıklayın.
-3. Varsayılan tarayıcıda açılan ekrandan **Yeni işlem oluştur** bölümünü seçin.
+3. Açılan IMAJER penceresinden **Yeni işlem oluştur** bölümünü seçin.
 4. Hedef türünü seçin:
    - Linux sunucu için **SSH**
    - Windows sunucu için **WinRM HTTPS**
@@ -39,8 +40,11 @@ ve bir kez daha **Aç** düğmesine basın.
   kullanın.
 
 ZIP'in tamamını bir klasöre çıkarın ve `IMAJER.exe` dosyasına çift tıklayın.
-Arayüz varsayılan tarayıcıda açılır. Windows SmartScreen imzasız uygulama
-uyarısı gösterirse **Ek bilgi** ve ardından **Yine de çalıştır** seçilebilir.
+IMAJER sekmesiz ve adres çubuksuz ayrı bir uygulama penceresinde açılır.
+Windows'ta bu pencere yüklü Microsoft Edge motorunun ayrı ve izole bir
+uygulama profilini kullanır; normal Edge sekmeleriniz açılmaz. Windows
+SmartScreen imzasız uygulama uyarısı gösterirse **Ek bilgi** ve ardından
+**Yine de çalıştır** seçilebilir.
 
 Windows'ta uygulama ayarları ve otomatik oluşturulan incelemeci anahtarı
 `%AppData%\IMAJER` altında, kanıtlar varsayılan olarak
