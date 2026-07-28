@@ -1,0 +1,26 @@
+# Build and test output
+/dist/
+/test/remote-ssh/runtime/
+/coverage.out
+/*.prof
+/*.test
+
+# Local demo material: generated keys, source data and evidence
+/demo/evidence/
+/demo/keys/
+/demo/source.raw
+/demo/local-job.yaml
+
+# Operator-local jobs and evidence
+/job.yaml
+/evidence/
+
+# Credentials and platform noise
+*.pem
+*.key
+*.p12
+*.pfx
+.DS_Store
+Thumbs.db
+*.log
+*.tmp

@@ -1,0 +1,26 @@
+case:
+  id: CASE-E2E
+  evidence_id: EVID-E2E
+  examiner: Integration Test
+  organization: imajer
+  authority_ref: automated-test
+  authorized: true
+target:
+  transport: local
+acquisition:
+  profile: disk
+  chunk_size: 8388608
+  segment_size: 16777216
+  disk:
+    path: /private/tmp/imajer-source.raw
+    id: test-source-v1
+    size: 20971520
+    sector_size: 512
+    provider: native
+output:
+  directory: /private/tmp/imajer-e2e-output
+  signing_key: /private/tmp/imajer-e2e-signing.pem
+agent:
+  local_path: dist/imajer-agent
+retry:
+  max_attempts: 3

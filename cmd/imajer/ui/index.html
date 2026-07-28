@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>IMAJER — Adli İmaj Alma</title>
+  <link rel="stylesheet" href="/ui.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">IM</span>
+      <span>
+        <strong>IMAJER 0.3</strong>
+        <small>Adli İmaj Alma</small>
+      </span>
+    </a>
+    <div class="local-badge"><span></span> Yerel bağlantı: 127.0.0.1</div>
+  </header>
+
+  <main class="layout">
+    <section class="workspace">
+      <div class="hero">
+        <h1>IMAJER Adli İmaj Alma</h1>
+        <p>Vaka oluşturma, imaj alma, devam etme ve kanıt doğrulama işlemleri.</p>
+      </div>
+
+      <section class="quick-card">
+        <div>
+          <span class="icon-circle">Demo</span>
+          <div>
+            <h2>Hazır yerel deneme</h2>
+            <p>Oluşturduğunuz 2 MiB demo ile arayüzü hemen deneyin.</p>
+          </div>
+        </div>
+        <div class="quick-actions">
+          <button class="button secondary" id="demoDiscover">Kontrol et</button>
+          <button class="button primary" id="demoAcquire">İmajı al</button>
+          <button class="button success" id="demoVerify">Doğrula</button>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="İşlem türü">
+        <button class="tab active" data-tab="existing">Mevcut işlem</button>
+        <button class="tab" data-tab="new">Yeni işlem oluştur</button>
+        <button class="tab" data-tab="verify">Kanıt doğrula</button>
+      </nav>
+
+      <section class="panel active" id="panel-existing">
+        <div class="section-title">
+          <div><span>01</span></div>
+          <div>
+            <h2>Mevcut job dosyasını kullan</h2>
+            <p>Daha önce oluşturulmuş işlem dosyanızla devam edin.</p>
+          </div>
+        </div>
+        <div class="field wide">
+          <label for="existingJob">Job dosyasının yolu</label>
+          <input id="existingJob" type="text" autocomplete="off" placeholder="/tam/yol/job.yaml">
+          <small>Örnek: demo/local-job.yaml</small>
+        </div>
+        <div class="field wide">
+          <label for="existingPassword">Hedef parolası <b>— isteğe bağlı</b></label>
+          <input id="existingPassword" type="password" autocomplete="new-password" placeholder="Kaydedilmez">
+        </div>
+        <div class="action-row">
+          <button class="button secondary existing-action" data-action="discover">Hedefi kontrol et</button>
+          <button class="button primary existing-action" data-action="acquire">İmajı başlat</button>
+          <button class="button secondary existing-action" data-action="resume">Devam et</button>
+          <button class="button ghost existing-action" data-action="report">Raporu yenile</button>
+          <button class="button danger existing-action" data-action="cleanup">Temizle</button>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-new">
+        <form id="newJobForm">
+          <div class="form-section">
+            <div class="section-title">
+              <div><span>01</span></div>
+              <div><h2>Vaka bilgileri</h2><p>Rapor üzerinde görünecek temel bilgiler.</p></div>
+            </div>
+            <div class="grid two">
+              <div class="field"><label>Vaka ID</label><input name="case_id" required value="CASE-2026-001"></div>
+              <div class="field"><label>Delil ID</label><input name="evidence_id" required value="EVID-001"></div>
+              <div class="field"><label>İncelemeci</label><input name="examiner" required placeholder="Ad Soyad"></div>
+              <div class="field"><label>Kurum</label><input name="organization" placeholder="Kurum adı"></div>
+              <div class="field wide"><label>Yetki / olay numarası</label><input name="authority_ref" required placeholder="IR-2026-42"></div>
+              <div class="field wide"><label>Not</label><input name="notes" placeholder="İsteğe bağlı"></div>
+            </div>
+            <label class="check"><input name="authorized" type="checkbox" required> Bu işlem için açık yasal yetkim olduğunu onaylıyorum.</label>
+          </div>
+
+          <div class="form-section">
+            <div class="section-title">
+              <div><span>02</span></div>
+              <div><h2>Hedef bağlantısı</h2><p>İmajı alınacak bilgisayarı seçin.</p></div>
+            </div>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="transport" value="local" checked><span><b>Yerel test</b><small>Bu bilgisayarda</small></span></label>
+              <label class="choice"><input type="radio" name="transport" value="ssh"><span><b>Linux / SSH</b><small>Uzak sunucu</small></span></label>
+              <label class="choice"><input type="radio" name="transport" value="winrm"><span><b>Windows / WinRM</b><small>Uzak sunucu</small></span></label>
+            </div>
+            <div class="grid two remote-fields hidden">
+              <div class="field"><label>Sunucu / IP</label><input name="host" placeholder="192.168.1.50"></div>
+              <div class="field"><label>Port</label><input name="port" inputmode="numeric" placeholder="22 veya 5986"></div>
+              <div class="field"><label>Kullanıcı</label><input name="user" autocomplete="username" placeholder="forensic"></div>
+              <div class="field"><label>Parola <b>— kaydedilmez</b></label><input name="password" type="password" autocomplete="new-password"></div>
+            </div>
+            <div class="grid two ssh-fields hidden">
+              <div class="field"><label>known_hosts yolu</label><input name="known_hosts" placeholder="/Users/.../.ssh/known_hosts"></div>
+              <div class="field"><label>SSH private key yolu <b>— isteğe bağlı</b></label><input name="private_key" placeholder="/Users/.../.ssh/id_ed25519"></div>
+            </div>
+            <div class="grid two winrm-fields hidden">
+              <div class="field"><label>Kimlik doğrulama</label><select name="auth"><option value="ntlm">NTLM</option><option value="basic">Basic</option><option value="kerberos">Kerberos</option></select></div>
+              <div class="field"><label>CA sertifikası yolu</label><input name="ca_file" placeholder="C:\Secure\winrm-ca.pem"></div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-title">
+              <div><span>03</span></div>
+              <div><h2>Ne alınacak?</h2><p>RAM, disk veya ikisini birlikte seçin.</p></div>
+            </div>
+            <div class="choice-row">
+              <label class="choice"><input type="radio" name="profile" value="disk" checked><span><b>Tüm disk</b><small>Fiziksel RAW imaj</small></span></label>
+              <label class="choice"><input type="radio" name="profile" value="ram"><span><b>Canlı RAM</b><small>Uçucu bellek</small></span></label>
+              <label class="choice"><input type="radio" name="profile" value="both"><span><b>RAM + Disk</b><small>Önce RAM alınır</small></span></label>
+            </div>
+            <div class="grid two disk-fields">
+              <div class="field wide"><label>Disk yolu</label><input name="disk_path" placeholder="/dev/sda veya \\.\PhysicalDrive0"></div>
+              <div class="field"><label>Seri / sabit ID</label><input name="disk_id" placeholder="ABC123456"></div>
+              <div class="field"><label>Model</label><input name="disk_model" placeholder="Samsung SSD"></div>
+              <div class="field"><label>Boyut — byte</label><input name="disk_size" inputmode="numeric" placeholder="1000204886016"></div>
+              <div class="field"><label>Sektör boyutu</label><input name="sector_size" inputmode="numeric" value="512"></div>
+              <div class="field"><label>Okuma yöntemi</label><select name="disk_provider"><option value="native">Native salt-okunur</option><option value="auto">Otomatik</option></select></div>
+            </div>
+            <div class="grid two ram-fields hidden">
+              <div class="field"><label>RAM yöntemi</label><select name="ram_provider"><option value="auto">Otomatik</option><option value="avml">AVML</option><option value="lime">LiME</option><option value="winpmem">WinPmem</option></select></div>
+              <div class="field"><label>Araç adı</label><input name="ram_tool_name" placeholder="avml veya lime"></div>
+              <div class="field wide"><label>Yerel RAM aracı yolu</label><input name="ram_tool_local" placeholder="/tool-bundle/avml"></div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-title">
+              <div><span>04</span></div>
+              <div><h2>Çıktı ve güven</h2><p>Kanıt dizini, imza anahtarı ve doğrulanmış agent.</p></div>
+            </div>
+            <div class="grid two">
+              <div class="field wide"><label>Kanıtların kaydedileceği dizin</label><input name="output_directory" required placeholder="/Volumes/KanitDiski/evidence"></div>
+              <div class="field wide"><label>Examiner private key yolu</label><input name="signing_key" required placeholder="/secure/examiner-private.pem"></div>
+              <div class="field wide"><label>Yerel agent binary yolu</label><input name="agent_local" id="agentLocal" placeholder="/path/imajer-agent"></div>
+              <div class="field wide remote-fields hidden"><label>Preinstalled uzak agent yolu <b>— isteğe bağlı</b></label><input name="agent_remote"></div>
+              <div class="field remote-fields hidden"><label>İmzalı tool manifest</label><input name="tool_manifest" placeholder="/tool-bundle/tool-manifest.json"></div>
+              <div class="field remote-fields hidden"><label>Tool güven public key</label><input name="trust_public_key" placeholder="/secure/tool-release-public.pem"></div>
+            </div>
+          </div>
+
+          <div class="submit-bar">
+            <p><b>Hazırsınız.</b><br>Önce kontrol etmeniz önerilir.</p>
+            <div>
+              <button type="button" class="button secondary new-action" data-action="discover">Bilgileri kontrol et</button>
+              <button type="button" class="button primary new-action" data-action="acquire">İmajı başlat</button>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" id="panel-verify">
+        <div class="section-title">
+          <div><span>✓</span></div>
+          <div><h2>Kanıt paketini doğrula</h2><p>RAW dosyaları, hash'ler ve Ed25519 imzası denetlenir.</p></div>
+        </div>
+        <div class="field wide"><label for="verifyCaseDir">Kanıt vaka dizini</label><input id="verifyCaseDir" placeholder="/evidence/CASE-ID/EVIDENCE-ID"></div>
+        <div class="field wide"><label for="verifyPublicKey">Güvenilen examiner public key</label><input id="verifyPublicKey" placeholder="/secure/examiner-public.pem"></div>
+        <div class="action-row"><button class="button success" id="verifyButton">Kanıtı doğrula</button></div>
+      </section>
+    </section>
+
+    <aside class="monitor">
+      <div class="monitor-head">
+        <div>
+          <p class="eyebrow">DURUM</p>
+          <h2 id="statusTitle">Hazır</h2>
+        </div>
+        <span class="status-dot" id="statusDot"></span>
+      </div>
+      <div class="status-card">
+        <div><span>İşlem</span><strong id="statusAction">—</strong></div>
+        <div><span>Başlangıç</span><strong id="statusStarted">—</strong></div>
+        <div><span>Kanıt dizini</span><strong id="statusCase">—</strong></div>
+      </div>
+      <div class="console-wrap">
+        <div class="console-title"><span></span><span></span><span></span><b>Canlı kayıt</b></div>
+        <pre id="console" aria-live="polite">Arayüz hazır. Bir işlem seçin.</pre>
+      </div>
+      <button class="button danger full hidden" id="cancelButton">İşlemi güvenle durdur</button>
+      <p class="privacy-note">Arayüz yalnız bu bilgisayarda çalışır. Parolalar job, log veya rapora yazılmaz.</p>
+    </aside>
+  </main>
+
+  <div class="toast hidden" id="toast" role="alert"></div>
+  <script src="/ui.js"></script>
+</body>
+</html>

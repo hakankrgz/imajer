@@ -1,0 +1,46 @@
+case:
+  id: CASE-2026-001
+  evidence_id: EVID-001
+  examiner: Ada Lovelace
+  organization: Example DFIR
+  authority_ref: Warrant-or-IR-ticket
+  authorized: true
+
+target:
+  transport: ssh
+  host: server.example
+  port: 22
+  user: forensic
+  private_key: /absolute/path/id_ed25519
+  known_hosts: /absolute/path/known_hosts
+
+acquisition:
+  profile: disk
+  chunk_size: 8388608
+  segment_size: 2147483648
+  disk:
+    path: /dev/sda
+    id: ata-SERIAL-NUMBER
+    size: 1000204886016
+    sector_size: 512
+    provider: auto
+  ram:
+    id: volatile-memory
+    provider: auto
+    tool_name: avml
+    tool_local_path: /absolute/path/to/verified/avml
+
+output:
+  directory: /absolute/path/evidence
+  signing_key: /absolute/path/examiner-ed25519-pkcs8.pem
+
+agent:
+  local_path: /absolute/path/imajer-agent-linux-amd64
+  tool_manifest: /absolute/path/tool-manifest.json
+  trust_public_key: /absolute/path/tool-trust-public.pem
+
+retry:
+  max_attempts: 10
+  connect_timeout: 30s
+  chunk_timeout: 5m
+  cleanup_timeout: 2m

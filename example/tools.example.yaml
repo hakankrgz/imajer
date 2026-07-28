@@ -1,0 +1,12 @@
+- name: imajer-agent
+  version: dev
+  os: linux
+  arch: amd64
+  path: ./imajer-agent-linux-amd64
+  license: Apache-2.0
+- name: avml
+  version: pinned-by-operator
+  os: linux
+  arch: amd64
+  path: ./avml
+  license: MIT

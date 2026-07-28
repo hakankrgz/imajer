@@ -1,0 +1,14 @@
+* text=auto
+*.go text eol=lf
+*.mod text eol=lf
+*.sum text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.command text eol=lf
+*.cmd text eol=crlf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.raw binary
+*.pdf binary
+*.sig binary
