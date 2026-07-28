@@ -3,17 +3,24 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/hakankrgz/imajer/internal/config"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 func TestDerivedRemoteMarkerPath(t *testing.T) {
@@ -87,6 +94,280 @@ func TestUISavesValidJobWithoutCredential(t *testing.T) {
 		t.Fatalf("defaults were not preserved: %#v", job)
 	}
 }
+
+func TestUISavesLocalFileWithAutomaticDiskMetadata(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "source.raw")
+	if err := os.WriteFile(sourcePath, bytes.Repeat([]byte{0x5a}, 8192), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := &uiServer{workingDir: root}
+	jobPath, _, err := server.saveJob(uiJobForm{
+		CaseID: "CASE-AUTO", EvidenceID: "EVID-AUTO", Examiner: "Examiner",
+		AuthorityRef: "AUTH", Authorized: true, Transport: "local", Profile: "disk",
+		DiskPath:        sourcePath,
+		OutputDirectory: filepath.Join(root, "evidence"),
+		SigningKey:      filepath.Join(root, "keys", "examiner.pem"),
+		AgentLocal:      filepath.Join(root, "imajer-agent"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := config.Load(jobPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job.Acquisition.Disk.Path != sourcePath ||
+		job.Acquisition.Disk.ID != filepath.Base(sourcePath) ||
+		job.Acquisition.Disk.Size != 8192 ||
+		job.Acquisition.Disk.SectorSize != 512 ||
+		job.Acquisition.Disk.Model != "Yerel test dosyası" {
+		t.Fatalf("automatic metadata is incorrect: %#v", job.Acquisition.Disk)
+	}
+}
+
+func TestParseLSBLKDisks(t *testing.T) {
+	raw := []byte(`{
+		"blockdevices": [
+			{"name":"sda","path":"/dev/sda","model":"Fast Disk","serial":"SER-1","wwn":"WWN-1","size":"2000000000","log-sec":"4096","type":"disk"},
+			{"name":"sda1","path":"/dev/sda1","size":"1000000","log-sec":"4096","type":"part"},
+			{"name":"nvme0n1","path":null,"model":null,"serial":null,"wwn":"WWN-2","size":3000000000,"log-sec":512,"type":"disk"},
+			{"name":"loop0","path":"/dev/loop0","size":"1000","log-sec":"512","type":"loop"}
+		]
+	}`)
+	disks, err := parseLSBLKDisks(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(disks) != 2 {
+		t.Fatalf("got %d disks, want 2: %#v", len(disks), disks)
+	}
+	if disks[0].ID != "SER-1" || disks[0].SectorSize != 4096 {
+		t.Fatalf("unexpected first disk: %#v", disks[0])
+	}
+	if disks[1].Path != "/dev/nvme0n1" || disks[1].ID != "WWN-2" ||
+		disks[1].Size != 3000000000 {
+		t.Fatalf("unexpected second disk: %#v", disks[1])
+	}
+}
+
+func TestParseWindowsInventory(t *testing.T) {
+	raw := []byte(`{
+		"Hostname":"SERVER01","Arch":"AMD64","Admin":true,
+		"Disks":[
+			{"Path":"\\\\.\\PhysicalDrive0","Serial":" WD-123 ","Model":"Data Disk","Size":4000000000,"SectorSize":4096},
+			{"Path":"\\\\.\\PhysicalDrive1","Serial":"","Model":"Other","Size":5000000000,"SectorSize":0}
+		]
+	}`)
+	inventory, err := parseWindowsInventory(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inventory.Hostname != "SERVER01" || inventory.OS != "windows" ||
+		inventory.Arch != "amd64" || !inventory.Admin || len(inventory.Disks) != 2 {
+		t.Fatalf("unexpected inventory: %#v", inventory)
+	}
+	if inventory.Disks[0].ID != "WD-123" || inventory.Disks[0].SectorSize != 4096 {
+		t.Fatalf("unexpected first disk: %#v", inventory.Disks[0])
+	}
+	if inventory.Disks[1].ID != `\\.\PhysicalDrive1` || inventory.Disks[1].SectorSize != 512 {
+		t.Fatalf("unexpected fallback disk: %#v", inventory.Disks[1])
+	}
+}
+
+func TestUITargetFromFormUsesSecureDefaults(t *testing.T) {
+	root := t.TempDir()
+	knownHosts := filepath.Join(root, "known_hosts")
+	if err := os.WriteFile(knownHosts, []byte("example"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := &uiServer{workingDir: root}
+	target, err := server.targetFromForm(uiJobForm{
+		Transport: "ssh", Host: "192.0.2.10", User: "forensic",
+		KnownHosts: knownHosts,
+	}, "temporary-secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target.Port != 22 || target.RuntimePassword != "temporary-secret" ||
+		target.KnownHosts != knownHosts {
+		t.Fatalf("unexpected target: %#v", target)
+	}
+}
+
+func TestUIAgentPathMatchesDiscoveredTarget(t *testing.T) {
+	root := t.TempDir()
+	agentDir := filepath.Join(root, "dist")
+	if err := os.MkdirAll(agentDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	agentPath := filepath.Join(agentDir, "imajer-agent-linux-arm64")
+	if err := os.WriteFile(agentPath, []byte("test-agent"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	server := &uiServer{workingDir: root}
+	got, err := server.agentPathFor("linux", "aarch64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != agentPath {
+		t.Fatalf("got %q want %q", got, agentPath)
+	}
+	if _, err := server.agentPathFor("windows", "arm64"); err == nil {
+		t.Fatal("unsupported remote Windows ARM64 target was accepted")
+	}
+}
+
+func TestManagedKnownHostsStoresVerifiedKey(t *testing.T) {
+	root := t.TempDir()
+	path, err := ensureManagedKnownHosts(root, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		t.Fatalf("known_hosts permissions too broad: %o", info.Mode().Perm())
+	}
+	publicKey, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostKey, err := ssh.NewPublicKey(publicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := appendTrustedHostKey(path, "server.example", hostKey); err != nil {
+		t.Fatal(err)
+	}
+	checker, err := knownhosts.New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checker("server.example:22", &net.TCPAddr{}, hostKey); err != nil {
+		t.Fatalf("stored host key was not trusted: %v", err)
+	}
+}
+
+func TestSSHHostKeyInspectionRequiresTrustAndRejectsChange(t *testing.T) {
+	root := t.TempDir()
+	path, err := ensureManagedKnownHosts(root, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstSigner := newTestSSHSigner(t)
+	status := inspectTestSSHHostKey(t, path, firstSigner)
+	if status.Trusted || status.Changed || status.Fingerprint == "" {
+		t.Fatalf("new key had unexpected status: %#v", status)
+	}
+	if err := appendTrustedHostKey(path, status.Host, status.key); err != nil {
+		t.Fatal(err)
+	}
+	status = inspectTestSSHHostKey(t, path, firstSigner)
+	if !status.Trusted || status.Changed {
+		t.Fatalf("stored key was not trusted: %#v", status)
+	}
+	status = inspectTestSSHHostKey(t, path, newTestSSHSigner(t))
+	if status.Trusted || !status.Changed {
+		t.Fatalf("changed key was not rejected: %#v", status)
+	}
+}
+
+func newTestSSHSigner(t *testing.T) ssh.Signer {
+	t.Helper()
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromKey(privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signer
+}
+
+func inspectTestSSHHostKey(t *testing.T, knownHostsPath string, signer ssh.Signer) uiSSHHostKey {
+	t.Helper()
+	rawServer, rawClient := net.Pipe()
+	serverConnection := newAsyncTestConn(rawServer)
+	clientConnection := newAsyncTestConn(rawClient)
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		defer serverConnection.Close()
+		config := &ssh.ServerConfig{NoClientAuth: true}
+		config.AddHostKey(signer)
+		connection, _, _, _ := ssh.NewServerConn(serverConnection, config)
+		if connection != nil {
+			_ = connection.Close()
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	status, err := inspectSSHHostKey(ctx, clientConnection, "server.example:22", knownHostsPath)
+	_ = clientConnection.Close()
+	<-serverDone
+	if err != nil {
+		t.Fatal(err)
+	}
+	return status
+}
+
+type asyncTestConn struct {
+	net.Conn
+	writes chan []byte
+	done   chan struct{}
+	once   sync.Once
+}
+
+func newAsyncTestConn(connection net.Conn) *asyncTestConn {
+	result := &asyncTestConn{
+		Conn: connection, writes: make(chan []byte, 64), done: make(chan struct{}),
+	}
+	go func() {
+		for {
+			select {
+			case <-result.done:
+				return
+			case data := <-result.writes:
+				if _, err := result.Conn.Write(data); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	return result
+}
+
+func (c *asyncTestConn) Write(data []byte) (int, error) {
+	copyOfData := append([]byte(nil), data...)
+	select {
+	case c.writes <- copyOfData:
+		return len(data), nil
+	case <-c.done:
+		return 0, net.ErrClosed
+	}
+}
+
+func (c *asyncTestConn) Close() error {
+	var err error
+	c.once.Do(func() {
+		close(c.done)
+		err = c.Conn.Close()
+	})
+	return err
+}
+
+func (c *asyncTestConn) RemoteAddr() net.Addr {
+	return testNetworkAddress("127.0.0.1:22")
+}
+
+type testNetworkAddress string
+
+func (a testNetworkAddress) Network() string { return "tcp" }
+func (a testNetworkAddress) String() string  { return string(a) }
 
 func TestUIRequiresTokenForMutation(t *testing.T) {
 	server := &uiServer{token: "expected"}

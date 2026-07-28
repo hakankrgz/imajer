@@ -37,11 +37,14 @@ var uiFiles embed.FS
 
 type uiServer struct {
 	mu                sync.Mutex
+	inventoryMu       sync.Mutex
 	token             string
 	executable        string
 	workingDir        string
 	resourceDir       string
 	defaultSigningKey string
+	defaultPublicKey  string
+	defaultKnownHosts string
 	packaged          bool
 	cancel            context.CancelFunc
 	shutdown          chan struct{}
@@ -61,12 +64,14 @@ type uiStatus struct {
 }
 
 type uiRunRequest struct {
-	Action    string     `json:"action"`
-	JobPath   string     `json:"job_path,omitempty"`
-	CaseDir   string     `json:"case_dir,omitempty"`
-	PublicKey string     `json:"public_key,omitempty"`
-	Password  string     `json:"password,omitempty"`
-	Job       *uiJobForm `json:"job,omitempty"`
+	Action              string     `json:"action"`
+	JobPath             string     `json:"job_path,omitempty"`
+	CaseDir             string     `json:"case_dir,omitempty"`
+	PublicKey           string     `json:"public_key,omitempty"`
+	Password            string     `json:"password,omitempty"`
+	TrustHostKey        bool       `json:"trust_host_key,omitempty"`
+	ExpectedFingerprint string     `json:"expected_fingerprint,omitempty"`
+	Job                 *uiJobForm `json:"job,omitempty"`
 }
 
 type uiJobForm struct {
@@ -126,11 +131,16 @@ func runUI(ctx context.Context, args []string) error {
 		return err
 	}
 	defaultSigningKey := ""
+	defaultPublicKey := ""
 	if packaged {
-		defaultSigningKey, _, err = ensureExaminerKey(workingDir)
+		defaultSigningKey, defaultPublicKey, err = ensureExaminerKey(workingDir)
 		if err != nil {
 			return fmt.Errorf("incelemeci imza anahtarını hazırla: %w", err)
 		}
+	}
+	defaultKnownHosts, err := ensureManagedKnownHosts(workingDir, packaged)
+	if err != nil {
+		return fmt.Errorf("SSH güven deposunu hazırla: %w", err)
 	}
 	token, err := secureToken()
 	if err != nil {
@@ -139,13 +149,17 @@ func runUI(ctx context.Context, args []string) error {
 	server := &uiServer{
 		token: token, executable: executable, workingDir: workingDir,
 		resourceDir: resourceDir, defaultSigningKey: defaultSigningKey,
-		packaged: packaged, shutdown: make(chan struct{}, 1),
+		defaultPublicKey:  defaultPublicKey,
+		defaultKnownHosts: defaultKnownHosts,
+		packaged:          packaged, shutdown: make(chan struct{}, 1),
 		status: uiStatus{Message: "Hazır", Logs: []string{}},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", server.handleHealth)
 	mux.HandleFunc("/api/config", server.handleConfig)
 	mux.HandleFunc("/api/status", server.handleStatus)
+	mux.HandleFunc("/api/ssh-host-key", server.requireToken(server.handleSSHHostKey))
+	mux.HandleFunc("/api/inventory", server.requireToken(server.handleInventory))
 	mux.HandleFunc("/api/run", server.requireToken(server.handleRun))
 	mux.HandleFunc("/api/cancel", server.requireToken(server.handleCancel))
 	mux.HandleFunc("/api/shutdown", server.requireToken(server.handleShutdown))
@@ -229,11 +243,12 @@ func (s *uiServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	home, _ := os.UserHomeDir()
-	agentsDir := filepath.Join(s.resourceDir, "agents")
+	agentsDir := s.agentDirectory()
 	agents := map[string]string{
 		"linux_amd64":   filepath.Join(agentsDir, "imajer-agent-linux-amd64"),
 		"linux_arm64":   filepath.Join(agentsDir, "imajer-agent-linux-arm64"),
 		"windows_amd64": filepath.Join(agentsDir, "imajer-agent-windows-amd64.exe"),
+		"windows_arm64": filepath.Join(agentsDir, "imajer-agent-windows-arm64.exe"),
 	}
 	localAgent := filepath.Join(s.workingDir, "dist", "imajer-agent")
 	if s.packaged {
@@ -252,6 +267,16 @@ func (s *uiServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 	demoPublicKey := filepath.Join(s.workingDir, "demo", "keys", "examiner-public.pem")
 	demoAvailable := regularFileExists(demoJob) && regularFileExists(localAgent)
 	defaultOutput := filepath.Join(home, "Documents", "IMAJER-Evidence")
+	defaultPrivateKey := ""
+	for _, candidate := range []string{
+		filepath.Join(home, ".ssh", "id_ed25519"),
+		filepath.Join(home, ".ssh", "id_rsa"),
+	} {
+		if regularFileExists(candidate) {
+			defaultPrivateKey = candidate
+			break
+		}
+	}
 	toolManifest := filepath.Join(agentsDir, "tool-manifest.json")
 	trustPublicKey := filepath.Join(agentsDir, "tool-release-public.pem")
 	if !regularFileExists(toolManifest) {
@@ -269,6 +294,9 @@ func (s *uiServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"default_agent":       localAgent,
 		"default_output":      defaultOutput,
 		"default_signing_key": s.defaultSigningKey,
+		"default_public_key":  s.defaultPublicKey,
+		"default_known_hosts": s.defaultKnownHosts,
+		"default_private_key": defaultPrivateKey,
 		"tool_manifest":       toolManifest,
 		"trust_public_key":    trustPublicKey,
 		"demo_available":      demoAvailable,
@@ -276,6 +304,13 @@ func (s *uiServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"demo_case_dir":       demoCase,
 		"demo_public_key":     demoPublicKey,
 	})
+}
+
+func (s *uiServer) agentDirectory() string {
+	if s.packaged {
+		return filepath.Join(s.resourceDir, "agents")
+	}
+	return filepath.Join(s.workingDir, "dist")
 }
 
 func (s *uiServer) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -403,6 +438,32 @@ func (s *uiServer) saveJob(form uiJobForm) (string, string, error) {
 		return "", "", fmt.Errorf("sektör boyutu: %w", err)
 	}
 	transportName := strings.ToLower(strings.TrimSpace(form.Transport))
+	profileName := strings.ToLower(strings.TrimSpace(form.Profile))
+	diskPath := strings.TrimSpace(form.DiskPath)
+	diskID := strings.TrimSpace(form.DiskID)
+	diskModel := strings.TrimSpace(form.DiskModel)
+	if transportName == "local" && (profileName == "disk" || profileName == "both") &&
+		diskPath != "" && (diskID == "" || diskSize == 0 || sectorSize == 0) {
+		diskPath = absoluteFrom(s.workingDir, diskPath)
+		info, statErr := os.Stat(diskPath)
+		if statErr != nil {
+			return "", "", fmt.Errorf("yerel kaynak dosyası açılamadı: %w", statErr)
+		}
+		if info.Mode().IsRegular() {
+			if diskID == "" {
+				diskID = filepath.Base(diskPath)
+			}
+			if diskModel == "" {
+				diskModel = "Yerel test dosyası"
+			}
+			if diskSize == 0 {
+				diskSize = info.Size()
+			}
+			if sectorSize == 0 {
+				sectorSize = 512
+			}
+		}
+	}
 	if port == 0 {
 		if transportName == "ssh" {
 			port = 22
@@ -425,11 +486,11 @@ func (s *uiServer) saveJob(form uiJobForm) (string, string, error) {
 			CAFile:     absOptional(s.workingDir, form.CAFile),
 		},
 		Acquisition: config.Acquisition{
-			Profile:   strings.ToLower(strings.TrimSpace(form.Profile)),
+			Profile:   profileName,
 			ChunkSize: config.DefaultChunkSize, SegmentSize: config.DefaultSegmentSize,
 			Disk: config.Source{
-				Path: strings.TrimSpace(form.DiskPath), ID: strings.TrimSpace(form.DiskID),
-				Model: strings.TrimSpace(form.DiskModel), Size: diskSize, SectorSize: sectorSize,
+				Path: diskPath, ID: diskID,
+				Model: diskModel, Size: diskSize, SectorSize: sectorSize,
 				Provider: strings.ToLower(strings.TrimSpace(form.DiskProvider)),
 			},
 			RAM: config.Source{

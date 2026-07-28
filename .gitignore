@@ -15,6 +15,7 @@
 # Operator-local jobs and evidence
 /job.yaml
 /evidence/
+/.imajer-ui/
 
 # Credentials and platform noise
 *.pem

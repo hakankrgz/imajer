@@ -14,9 +14,16 @@ bilgisayardaki `127.0.0.1` adresini dinler; internete yayınlanmaz.
    - Linux sunucu için **SSH**
    - Windows sunucu için **WinRM HTTPS**
    - Bu bilgisayardaki sıradan bir test dosyası için **Yerel**
-5. Vaka bilgilerini ve hedef bilgilerini doldurup önce **Hedefi kontrol et**,
-   sonra **İmajı başlat** düğmesine basın.
-6. İşiniz bittiğinde sağdaki **Uygulamayı kapat** düğmesini kullanın.
+5. Uzak hedefte IP, kullanıcı ve parolayı girip **Bağlan ve diskleri getir**
+   düğmesine basın.
+6. Linux sunucuya ilk bağlantıysa gösterilen SSH fingerprint'i sunucu
+   yöneticisinden doğrulayın; eşleşiyorsa **Doğruladım, güven ve bağlan**
+   düğmesine basın.
+7. Programın bulduğu disklerden doğru olanı model, ID ve boyutuna bakarak
+   seçin. `/dev/sda` veya `PhysicalDrive0` gibi bir yolu ezberlemeniz gerekmez.
+8. **Tüm disk**, **Canlı RAM** veya **RAM + Disk** seçimini yapın.
+9. Önce **Bilgileri kontrol et**, sonra **İmajı başlat** düğmesine basın.
+10. İşiniz bittiğinde sağdaki **Uygulamayı kapat** düğmesini kullanın.
 
 Kanıtlar varsayılan olarak `Belgeler/IMAJER-Evidence` dizinine yazılır. Uygulama
 ilk açılışta incelemeci Ed25519 imza anahtarını

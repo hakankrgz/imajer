@@ -1,8 +1,8 @@
 # Plan Uygunluk ve Eksik Analizi
 
-Tarih: 2026-07-28
-Revizyon: 5 — tarayıcı sekmesi native uygulama penceresiyle değiştirildi
-Doğrulanan geliştirme sürümü: `0.5.0`
+Tarih: 2026-07-29
+Revizyon: 6 — uzak disk keşfi ve sadeleştirilmiş masaüstü akışı
+Doğrulanan geliştirme sürümü: `0.6.0`
 
 ## 1. Güncel sonuç
 
@@ -30,6 +30,25 @@ biçimde sonlandırılır. Windows'ta controller, Microsoft Edge'i normal taray�
 sekmesi olarak değil; ayrı kullanıcı profiline sahip, sekmesiz ve adres
 çubuksuz uygulama penceresi olarak başlatır. Pencere kapanınca yerel servis de
 kapanır.
+
+`0.6.0` ile masaüstü arayüzünde disk yolu, seri/ID, model, byte cinsinden
+boyut, sektör boyutu ve hedef mimarisine uygun agent seçimini kullanıcının
+elle girmesi zorunluluğu kaldırılmıştır. Uygulama, görüntü/staging veya agent
+yüklemeden önce SSH üzerinde `lsblk`, WinRM HTTPS üzerinde salt-okunur CIM
+sorgusu çalıştırır; hedef hostname/OS/mimari/yetki durumunu ve fiziksel diskleri
+model, sabit ID, boyut ve cihaz yoluyla listeler. Operatör fiziksel diski açıkça
+bu listeden seçer. Bağlantı bilgisi değişirse eski envanter geçersiz sayılır.
+Yerel test dosyasının kimliği, boyutu ve sektör varsayımı da otomatik
+oluşturulur. Agent, imza ve manifest yolları uzman ayarlarına taşınmış ve
+paketten otomatik seçilir. Keşif yanıtındaki hedef metinleri arayüze HTML
+olarak işlenmez; yalnız güvenli metin düğümleri kullanılır.
+
+Paketli uygulama ayrıca kendine ait `0600` izinli SSH `known_hosts` güven
+deposunu otomatik oluşturur. İlk bağlantıda sunucunun SHA-256 fingerprint'i
+operatöre gösterilir; bağımsız kaynaktan doğrulama onayı verilmeden anahtar
+kaydedilmez ve SSH oturumu kurulmaz. Daha önce kayıtlı anahtar değişmişse
+otomatik güncelleme yapılmaz, bağlantı olası saldırı/anahtar değişimi olarak
+durdurulur.
 
 İlk analizdeki beş P0 maddeden dördünün kod tarafı kapatılmıştır:
 
@@ -238,6 +257,12 @@ Arşivlenmiş özet: `test/remote-ssh/TEST_SONUCU.md`
 - Kurulu `/Applications/IMAJER.app` üzerinde CoreGraphics ile ekranda
   `IMAJER — Adli İmaj Alma` adlı 1240×852 pencere, `0.5.0` health cevabı ve
   kapatma sonrası hem pencere hem `imajer-core` sürecinin sonlandığı doğrulandı.
+- `0.6.0` paketi `/Applications/IMAJER.app` üzerine kuruldu; ad-hoc kod imzası,
+  `0.6.0` health cevabı ve 1240×852 native pencere doğrulandı. Arayüz API'siyle
+  yalnız kaynak yolu verilerek yapılan 2 MiB yerel edinimde disk ID/model/size/
+  sector otomatik üretildi; kaynak ve `disk.001` SHA-256 eşleşti,
+  `verified_continuous`, `ACQUISITION_VERIFIED` ve `PACKAGE_INTEGRITY_OK`
+  sonuçları alındı.
 - Windows masaüstü binary'lerinde GUI subsystem; çift tıklamada konsol
   penceresi veya normal tarayıcı sekmesi açılmıyor.
 - Altı agent binary'si Ed25519 imzalı tool manifestinde; paket içindeki public
@@ -313,8 +338,18 @@ için ayrı append-only veri modeli henüz yoktur.
 
 ### P2-01 — Discovery tabanlı interaktif disk seçimi
 
-Wizard disk değerlerini açıkça ister ve disk otomatik seçilmez. Ancak wizard
-hedefe bağlanıp storage listesini tablo halinde sunarak seçim yaptırmaz.
+**Durum: Masaüstü arayüzünde tamamlandı; CLI wizard için yapılmadı.**
+
+Masaüstü uygulaması hedefe salt-okunur SSH/WinRM sorgusuyla bağlanır ve
+fiziksel diskleri açılır listede model, sabit ID, boyut ve cihaz yoluyla
+gösterir. Operatör listeden açık seçim yapar; disk hiçbir zaman otomatik
+seçilmez. Seçim job içindeki path/ID/model/size/sector alanlarını otomatik
+doldurur ve hedef mimarisine uygun imzalı agent yolunu seçer. Standart
+`~/.ssh/known_hosts`, paket içi agent/manifest/güven anahtarı ve uygulamanın
+incelemeci imza anahtarı kullanıcıdan gizli varsayılanlar olarak atanır.
+
+CLI `wizard` hâlâ disk değerlerini metin olarak sorar; bu eksik yalnız CLI
+etkileşimli kullanımını etkiler.
 
 ### P2-02 — Eksik argümanda aynı komut içinde wizard
 

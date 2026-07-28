@@ -105,16 +105,36 @@
               <div class="field"><label>Sunucu / IP</label><input name="host" placeholder="192.168.1.50"></div>
               <div class="field"><label>Port</label><input name="port" inputmode="numeric" placeholder="22 veya 5986"></div>
               <div class="field"><label>Kullanıcı</label><input name="user" autocomplete="username" placeholder="forensic"></div>
-              <div class="field"><label>Parola <b>— kaydedilmez</b></label><input name="password" type="password" autocomplete="new-password"></div>
+              <div class="field"><label>Parola / anahtar parolası <b>— kaydedilmez</b></label><input name="password" type="password" autocomplete="new-password"></div>
             </div>
-            <div class="grid two ssh-fields hidden">
-              <div class="field"><label>known_hosts yolu</label><input name="known_hosts" placeholder="/Users/.../.ssh/known_hosts"></div>
-              <div class="field"><label>SSH private key yolu <b>— isteğe bağlı</b></label><input name="private_key" placeholder="/Users/.../.ssh/id_ed25519"></div>
+            <div class="scan-box remote-fields hidden">
+              <div>
+                <b>Sunucuyu otomatik tanı</b>
+                <small id="targetScanStatus">Bağlantı bilgilerini girip bu düğmeye basın.</small>
+              </div>
+              <button type="button" class="button primary" id="scanTargetButton">Bağlan ve diskleri getir</button>
             </div>
-            <div class="grid two winrm-fields hidden">
-              <div class="field"><label>Kimlik doğrulama</label><select name="auth"><option value="ntlm">NTLM</option><option value="basic">Basic</option><option value="kerberos">Kerberos</option></select></div>
-              <div class="field"><label>CA sertifikası yolu</label><input name="ca_file" placeholder="C:\Secure\winrm-ca.pem"></div>
+            <div class="host-key-review hidden" id="hostKeyReview">
+              <b>İlk SSH bağlantısı — sunucu kimliğini doğrulayın</b>
+              <p>Bu fingerprint'i sunucu yöneticisinden veya güvenilir başka bir
+                kaynaktan doğrulayın. Eşleşiyorsa güven kaydını oluşturun.</p>
+              <code id="hostKeyFingerprint"></code>
+              <div>
+                <button type="button" class="button primary" id="trustHostKeyButton">Doğruladım, güven ve bağlan</button>
+                <button type="button" class="button secondary" id="cancelHostKeyButton">İptal</button>
+              </div>
             </div>
+            <details class="advanced remote-fields hidden">
+              <summary>Gelişmiş bağlantı ayarları</summary>
+              <div class="grid two ssh-fields hidden">
+                <div class="field"><label>known_hosts yolu</label><input name="known_hosts" placeholder="IMAJER otomatik yönetir"><small>İlk bağlantıda fingerprint onayıyla otomatik hazırlanır.</small></div>
+                <div class="field"><label>SSH private key yolu <b>— isteğe bağlı</b></label><input name="private_key" placeholder="/Users/.../.ssh/id_ed25519"></div>
+              </div>
+              <div class="grid two winrm-fields hidden">
+                <div class="field"><label>Kimlik doğrulama</label><select name="auth"><option value="ntlm">NTLM</option><option value="basic">Basic</option><option value="kerberos">Kerberos</option></select></div>
+                <div class="field"><label>CA sertifikası yolu <b>— sistem güveni yeterliyse boş</b></label><input name="ca_file" placeholder="C:\Secure\winrm-ca.pem"></div>
+              </div>
+            </details>
           </div>
 
           <div class="form-section">
@@ -127,18 +147,42 @@
               <label class="choice"><input type="radio" name="profile" value="ram"><span><b>Canlı RAM</b><small>Uçucu bellek</small></span></label>
               <label class="choice"><input type="radio" name="profile" value="both"><span><b>RAM + Disk</b><small>Önce RAM alınır</small></span></label>
             </div>
-            <div class="grid two disk-fields">
-              <div class="field wide"><label>Disk yolu</label><input name="disk_path" placeholder="/dev/sda veya \\.\PhysicalDrive0"></div>
-              <div class="field"><label>Seri / sabit ID</label><input name="disk_id" placeholder="ABC123456"></div>
-              <div class="field"><label>Model</label><input name="disk_model" placeholder="Samsung SSD"></div>
-              <div class="field"><label>Boyut — byte</label><input name="disk_size" inputmode="numeric" placeholder="1000204886016"></div>
-              <div class="field"><label>Sektör boyutu</label><input name="sector_size" inputmode="numeric" value="512"></div>
-              <div class="field"><label>Okuma yöntemi</label><select name="disk_provider"><option value="native">Native salt-okunur</option><option value="auto">Otomatik</option></select></div>
+            <div class="disk-fields">
+              <div class="field wide remote-disk-picker hidden">
+                <label for="diskSelect">İmajı alınacak fiziksel disk</label>
+                <select id="diskSelect">
+                  <option value="">Önce “Bağlan ve diskleri getir” düğmesine basın</option>
+                </select>
+                <small>Diskler model, seri numarası ve boyutuyla gösterilir; cihaz yolu otomatik doldurulur.</small>
+              </div>
+              <div class="field wide local-disk-picker">
+                <label for="localSourcePath">Yerel test kaynak dosyası</label>
+                <input id="localSourcePath" placeholder="/tam/yol/test-dosyasi.raw">
+                <small>Yerel testte dosya boyutu ve kimliği otomatik hesaplanır.</small>
+              </div>
+              <div class="inventory-summary hidden" id="selectedDiskSummary"></div>
+              <details class="advanced">
+                <summary>Uzman disk ayarları</summary>
+                <div class="grid two">
+                  <div class="field wide"><label>Disk yolu</label><input name="disk_path" placeholder="Otomatik doldurulur"></div>
+                  <div class="field"><label>Seri / sabit ID</label><input name="disk_id" placeholder="Otomatik doldurulur"></div>
+                  <div class="field"><label>Model</label><input name="disk_model" placeholder="Otomatik doldurulur"></div>
+                  <div class="field"><label>Boyut — byte</label><input name="disk_size" inputmode="numeric" placeholder="Otomatik doldurulur"></div>
+                  <div class="field"><label>Sektör boyutu</label><input name="sector_size" inputmode="numeric" value="512"></div>
+                  <div class="field"><label>Okuma yöntemi</label><select name="disk_provider"><option value="native">Native salt-okunur</option><option value="auto">Otomatik</option></select></div>
+                </div>
+              </details>
             </div>
-            <div class="grid two ram-fields hidden">
-              <div class="field"><label>RAM yöntemi</label><select name="ram_provider"><option value="auto">Otomatik</option><option value="avml">AVML</option><option value="lime">LiME</option><option value="winpmem">WinPmem</option></select></div>
-              <div class="field"><label>Araç adı</label><input name="ram_tool_name" placeholder="avml veya lime"></div>
-              <div class="field wide"><label>Yerel RAM aracı yolu</label><input name="ram_tool_local" placeholder="/tool-bundle/avml"></div>
+            <div class="ram-fields hidden">
+              <p class="auto-note">RAM yöntemi hedef işletim sistemi ve mimarisine göre otomatik seçilir.</p>
+              <details class="advanced">
+                <summary>Uzman RAM ayarları</summary>
+                <div class="grid two">
+                  <div class="field"><label>RAM yöntemi</label><select name="ram_provider"><option value="auto">Otomatik</option><option value="avml">AVML</option><option value="lime">LiME</option><option value="winpmem">WinPmem</option></select></div>
+                  <div class="field"><label>Araç adı</label><input name="ram_tool_name" placeholder="avml veya lime"></div>
+                  <div class="field wide"><label>Yerel RAM aracı yolu</label><input name="ram_tool_local" placeholder="/tool-bundle/avml"></div>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -149,12 +193,18 @@
             </div>
             <div class="grid two">
               <div class="field wide"><label>Kanıtların kaydedileceği dizin</label><input name="output_directory" required placeholder="/Volumes/KanitDiski/evidence"></div>
-              <div class="field wide"><label>Examiner private key yolu</label><input name="signing_key" required placeholder="/secure/examiner-private.pem"></div>
-              <div class="field wide"><label>Yerel agent binary yolu</label><input name="agent_local" id="agentLocal" placeholder="/path/imajer-agent"></div>
-              <div class="field wide remote-fields hidden"><label>Preinstalled uzak agent yolu <b>— isteğe bağlı</b></label><input name="agent_remote"></div>
-              <div class="field remote-fields hidden"><label>İmzalı tool manifest</label><input name="tool_manifest" placeholder="/tool-bundle/tool-manifest.json"></div>
-              <div class="field remote-fields hidden"><label>Tool güven public key</label><input name="trust_public_key" placeholder="/secure/tool-release-public.pem"></div>
             </div>
+            <p class="auto-note">İmza anahtarı, uyumlu agent ve güven manifesti uygulama tarafından otomatik seçilir.</p>
+            <details class="advanced">
+              <summary>Uzman güven ve agent ayarları</summary>
+              <div class="grid two">
+                <div class="field wide"><label>Examiner private key yolu</label><input name="signing_key" required placeholder="/secure/examiner-private.pem"></div>
+                <div class="field wide"><label>Yerel agent binary yolu</label><input name="agent_local" id="agentLocal" placeholder="/path/imajer-agent"></div>
+                <div class="field wide remote-fields hidden"><label>Preinstalled uzak agent yolu <b>— isteğe bağlı</b></label><input name="agent_remote"></div>
+                <div class="field remote-fields hidden"><label>İmzalı tool manifest</label><input name="tool_manifest" placeholder="/tool-bundle/tool-manifest.json"></div>
+                <div class="field remote-fields hidden"><label>Tool güven public key</label><input name="trust_public_key" placeholder="/secure/tool-release-public.pem"></div>
+              </div>
+            </details>
           </div>
 
           <div class="submit-bar">
