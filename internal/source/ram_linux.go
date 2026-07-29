@@ -64,29 +64,70 @@ func openFile(path string) (io.ReadCloser, error) {
 }
 
 func openAVML(ctx context.Context, tool, source string) (*Handle, error) {
-	args := []string{"acquire"}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("open AVML loopback listener: %w", err)
+	}
+	args := []string{"stream", "tcp"}
 	if source != "" {
 		args = append(args, "--source", source)
 	}
-	args = append(args, "/dev/stdout")
+	args = append(args, listener.Addr().String())
 	cmd := exec.CommandContext(ctx, tool, args...)
 	stderr := newBoundedBuffer(64 << 10)
 	cmd.Stderr = stderr
-	out, err := cmd.StdoutPipe()
-	if err != nil {
+	if err := cmd.Start(); err != nil {
+		_ = listener.Close()
 		return nil, err
 	}
-	if err := cmd.Start(); err != nil {
-		return nil, err
+	wait := make(chan error, 1)
+	go func() { wait <- cmd.Wait() }()
+	type acceptResult struct {
+		conn net.Conn
+		err  error
+	}
+	accepted := make(chan acceptResult, 1)
+	go func() {
+		conn, err := listener.Accept()
+		accepted <- acceptResult{conn: conn, err: err}
+	}()
+
+	var conn net.Conn
+	select {
+	case result := <-accepted:
+		_ = listener.Close()
+		if result.err != nil {
+			_ = cmd.Process.Kill()
+			waitErr := <-wait
+			return nil, fmt.Errorf("accept AVML loopback stream: %w: %v: %s",
+				result.err, waitErr, strings.TrimSpace(stderr.String()))
+		}
+		conn = result.conn
+	case waitErr := <-wait:
+		_ = listener.Close()
+		return nil, fmt.Errorf("AVML exited before opening its loopback stream: %w: %s",
+			waitErr, strings.TrimSpace(stderr.String()))
+	case <-ctx.Done():
+		_ = listener.Close()
+		_ = cmd.Process.Kill()
+		<-wait
+		return nil, ctx.Err()
+	case <-time.After(15 * time.Second):
+		_ = listener.Close()
+		_ = cmd.Process.Kill()
+		waitErr := <-wait
+		return nil, fmt.Errorf("AVML did not open its loopback stream: %v: %s",
+			waitErr, strings.TrimSpace(stderr.String()))
 	}
 	return &Handle{
-		Reader: out, Provider: "avml",
+		Reader: conn, Provider: "avml",
 		Close: func() error {
-			err := cmd.Wait()
-			if err != nil {
-				return fmt.Errorf("AVML failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+			connErr := conn.Close()
+			waitErr := <-wait
+			if waitErr != nil {
+				return fmt.Errorf("AVML failed: %w: %s", waitErr, strings.TrimSpace(stderr.String()))
 			}
-			return nil
+			return connErr
 		},
 	}, nil
 }

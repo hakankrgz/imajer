@@ -43,8 +43,8 @@ Go 1.26.5 gereklidir.
 make test
 make vet
 make reproducible
-make cross VERSION=0.6.4
-make desktop-packages VERSION=0.6.4
+make cross VERSION=0.6.5
+make desktop-packages VERSION=0.6.5
 ```
 
 Üretilen controller hedefleri:
@@ -91,7 +91,7 @@ artifact'e eklemez.
 Kaynak koddan yerel demo hazırlamak için:
 
 ```sh
-make demo VERSION=0.6.4
+make demo VERSION=0.6.5
 ```
 
 ## Anahtarlar ve imzalı araç paketi
@@ -118,10 +118,14 @@ imajer tools verify \
 ```
 
 Masaüstü paketi, Linux `amd64` ve `arm64` için Microsoft AVML `0.20.0`
-minimal binary'lerini resmî GitHub release varlıklarından yalnızca paketleme
+binary'lerini resmî GitHub release varlıklarından yalnızca paketleme
 sırasında indirir. Yayınlanan SHA-256 değerleri eşleşmezse paketleme durur;
 doğrulanan dosyalar Ed25519 imzalı tool manifestine eklenir. Edinim sırasında
-internetten indirme yapılmaz. FTK gibi proprietary binary'ler dağıtıma dahil
+internetten indirme yapılmaz. RAM verisi, AVML ile agent arasında yalnızca
+hedefin `127.0.0.1` arayüzüne bağlı TCP akışından geçirilir; hedef diskte RAM
+imajı oluşturulmaz. Büyük delillerin yerel hash ve rapor üretimi sırasında SSH
+oturumu zaman aşımına uğrasa bile cleanup öncesinde yeni bir doğrulanmış bağlantı
+kurulur. FTK gibi proprietary binary'ler dağıtıma dahil
 değildir. İmzalı araç manifesti bu dosyaların envanterini ve hedefteki
 hash doğrulamasını destekler; ancak standart FTK CLI'nin dosya-destination
 tabanlı edinim akışı strict zero-image-footprint modunda otomatik seçilmez.

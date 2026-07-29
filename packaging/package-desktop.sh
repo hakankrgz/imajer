@@ -3,7 +3,7 @@ set -eu
 
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 GO_BIN=${GO:-go}
-VERSION=${VERSION:-0.6.4}
+VERSION=${VERSION:-0.6.5}
 DIST_DIR="$PROJECT_DIR/dist"
 BUILD_DIR="$DIST_DIR/package-build"
 PACKAGE_DIR="$DIST_DIR/packages"
@@ -14,8 +14,8 @@ BASE_LDFLAGS="-s -w -X main.version=$VERSION"
 DESKTOP_LDFLAGS="$BASE_LDFLAGS -X main.desktopMode=true -X main.desktopWindowMode=true"
 AVML_VERSION=0.20.0
 AVML_BASE_URL="https://github.com/microsoft/avml/releases/download/v$AVML_VERSION"
-AVML_AMD64_SHA256=79094391156f778db695cde0f84c36c3ad16987b51d80ea02f4a2ffe703b9f47
-AVML_ARM64_SHA256=eef365674a9a8cdfa79da8ff1ad4bcb92db0705b32c07f7ca0efc361e543581e
+AVML_AMD64_SHA256=a67010b08af2edf5a04d2f051a133e0d8e30853c308f055b8335e759609d6dc9
+AVML_ARM64_SHA256=d3fa9285e94ad4268cb7ed20a62d8bd7b1ac4561e191b8a82654864b4541b3ad
 
 if [ "$(uname -s)" != Darwin ]; then
   echo "Tam masaüstü paketleme macOS üzerinde çalıştırılmalıdır." >&2
@@ -118,8 +118,8 @@ build_agent linux amd64 "$AGENT_DIR/imajer-agent-linux-amd64"
 build_agent linux arm64 "$AGENT_DIR/imajer-agent-linux-arm64"
 build_agent windows amd64 "$AGENT_DIR/imajer-agent-windows-amd64.exe"
 build_agent windows arm64 "$AGENT_DIR/imajer-agent-windows-arm64.exe"
-fetch_verified_avml avml-minimal "$AGENT_DIR/avml-linux-amd64" "$AVML_AMD64_SHA256"
-fetch_verified_avml avml-minimal-aarch64 "$AGENT_DIR/avml-linux-arm64" "$AVML_ARM64_SHA256"
+fetch_verified_avml avml "$AGENT_DIR/avml-linux-amd64" "$AVML_AMD64_SHA256"
+fetch_verified_avml avml-aarch64 "$AGENT_DIR/avml-linux-arm64" "$AVML_ARM64_SHA256"
 
 if [ ! -f "$KEY_DIR/tool-release-private.pem" ]; then
   echo "Yerel tool-release Ed25519 anahtarı oluşturuluyor: $KEY_DIR"

@@ -4,7 +4,7 @@ Bu klasörde private key, sentetik RAW kaynak ve kanıt çıktısı kaynak kontr
 eklenmez. Demo dosyalarını yerel olarak üretmek için proje kökünde:
 
 ```sh
-make demo VERSION=0.6.4
+make demo VERSION=0.6.5
 ```
 
 Ardından:

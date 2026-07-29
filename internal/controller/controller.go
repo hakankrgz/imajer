@@ -534,6 +534,7 @@ func (c *Controller) checkLocalSpace() error {
 
 func (c *Controller) acquireRAM(ctx context.Context) (*evidence.State, error) {
 	var last *evidence.State
+	var lastErr error
 	src := c.Job.Acquisition.RAM
 	for attempt := 1; attempt <= maxRAMAttempts; attempt++ {
 		id := fmt.Sprintf("memory-attempt-%03d", nextRAMAttempt(c.CaseDir))
@@ -542,6 +543,7 @@ func (c *Controller) acquireRAM(ctx context.Context) (*evidence.State, error) {
 		if err == nil {
 			return state, nil
 		}
+		lastErr = err
 		canFallbackToLiME := (src.Provider == "" || strings.EqualFold(src.Provider, "auto")) &&
 			strings.EqualFold(c.Probe.OS, "linux") &&
 			strings.EqualFold(filepath.Ext(src.ToolPath), ".ko")
@@ -582,7 +584,8 @@ func (c *Controller) acquireRAM(ctx context.Context) (*evidence.State, error) {
 			}
 		}
 	}
-	return last, errors.New("RAM acquisition failed after three zero-offset attempts")
+	return last, fmt.Errorf("RAM acquisition failed after %d zero-offset attempts: %w",
+		maxRAMAttempts, lastErr)
 }
 
 func (c *Controller) acquireArtifact(ctx context.Context, artifactID, kind string, src config.Source, ram bool) (*evidence.State, error) {
@@ -1055,6 +1058,14 @@ func (c *Controller) Cleanup(ctx context.Context) error {
 		return nil
 	}
 	var errs []error
+	if c.Transport != nil && (c.Transport.Name() == "ssh" || c.Transport.Name() == "winrm") {
+		if err := c.reconnectTransport(ctx); err != nil {
+			err = fmt.Errorf("temporary remote paths retained: cleanup reconnect failed: %w", err)
+			logErr := c.Events.Log(report.Event{Level: "error", Type: "cleanup", CaseID: c.Job.Case.ID, Message: err.Error()})
+			c.Footprint = append(c.Footprint, err.Error())
+			return errors.Join(err, logErr)
+		}
+	}
 	if c.agentUploaded || len(c.uploadedTools) > 0 || c.markerPath != "" {
 		if c.markerPath == "" || c.markerHash == "" {
 			err := errors.New("temporary remote paths retained: case marker is unavailable")

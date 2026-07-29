@@ -99,6 +99,31 @@ func TestRAMRestartsAtZeroAfterInterruption(t *testing.T) {
 	}
 }
 
+func TestRAMFinalErrorIncludesProviderCause(t *testing.T) {
+	caseDir := t.TempDir()
+	events, err := report.OpenEvents(caseDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer events.Close()
+	job := &config.Job{
+		Case: config.Case{ID: "CASE", EvidenceID: "EVID"},
+		Acquisition: config.Acquisition{
+			ChunkSize: 1 << 20, SegmentSize: 2 << 20,
+			RAM: config.Source{ID: "volatile-memory", Provider: "avml"},
+		},
+		Retry: config.Retry{MaxAttempts: 1},
+	}
+	c := &Controller{
+		Job: job, Transport: startFailureTransport{}, CaseDir: caseDir,
+		Events: events, AgentPath: "fake-agent",
+	}
+	_, err = c.acquireRAM(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "AVML loopback unavailable") {
+		t.Fatalf("provider cause was not preserved: %v", err)
+	}
+}
+
 func TestValidateLinuxRAMProviderRequiresAvailableSignedTool(t *testing.T) {
 	base := &Controller{
 		Job: &config.Job{Acquisition: config.Acquisition{
@@ -379,6 +404,21 @@ func TestNewArtifactRejectsPreexistingEvidenceFiles(t *testing.T) {
 	if _, err := controller.loadOrCreateState(artifactDir, "disk", "disk", source); err == nil {
 		t.Fatal("preexisting evidence file was accepted for a new artifact")
 	}
+}
+
+type startFailureTransport struct{}
+
+func (startFailureTransport) Name() string { return "local" }
+func (startFailureTransport) Close() error { return nil }
+func (startFailureTransport) Upload(context.Context, string, string, uint32) error {
+	return errors.New("not implemented")
+}
+func (startFailureTransport) HashFile(context.Context, string) (string, error) {
+	return "", errors.New("not implemented")
+}
+func (startFailureTransport) Remove(context.Context, string) error { return nil }
+func (startFailureTransport) Start(context.Context, []string) (*transport.Session, error) {
+	return nil, errors.New("AVML loopback unavailable")
 }
 
 type faultTransport struct {
