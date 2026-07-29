@@ -1,5 +1,28 @@
 # Gerçek SSH E2E Test Sonucu
 
+## 2026-07-29 — AWS Linux amd64 / AVML + raw EBS
+
+IMAJER 0.6.5 ile yetkili AWS laboratuvar hedefinde `RAM + Disk` profili
+doğrulandı:
+
+- İmzalı resmî AVML 0.20 tam binary'si hedefe yüklendi ve uzak SHA-256 değeri
+  signed tool manifest ile karşılaştırıldı.
+- RAM, hedefin yalnız `127.0.0.1` arayüzündeki TCP soketinden agent'a aktı;
+  hedefte RAM imaj/staging dosyası oluşturulmadı.
+- Her tamamlanan RAM snapshot'ı `1.023.342.556` byte,
+  `verified_continuous`, tek session ve sıfır retry sonucunu verdi.
+- 8 GiB Amazon EBS raw disk, native read-only provider ile alındı.
+- İki gerçek ağ/SSH kesintisinden sonra disk doğrulanmış ofsetlerden devam etti.
+- Nihai disk sonucu `chunk_verified_composite`: 1024 doğrulanmış 8 MiB chunk,
+  üç session ve iki retry.
+- Bağımsız `verify` dört tamamlanmış artifact için
+  `ACQUISITION_VERIFIED` ve imzalı paket için `PACKAGE_INTEGRITY_OK` verdi.
+- Son cleanup geçici AVML, agent ve case marker dosyalarını kaldırdı.
+
+Genel `exit status 1` mesajının kök neden olmadığı; ara çalışmalarda
+`events.jsonl` ve `sessions.jsonl` içinde gerçek nedenin `unexpected EOF` ve
+`network is unreachable` olarak korunduğu ayrıca doğrulandı.
+
 Tarih: 2026-07-28 22:58 UTC
 IMAJER sürümü: `0.6.2`
 Sonuç: **BAŞARILI**

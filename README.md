@@ -20,6 +20,12 @@ Ekip arkadaşları için ekran görüntülü kısa anlatım:
 [`EKIP_HIZLI_KULLANIM.md`](EKIP_HIZLI_KULLANIM.md).
 Paylaşılabilir PDF sürümü:
 [`EKIP_HIZLI_KULLANIM.pdf`](EKIP_HIZLI_KULLANIM.pdf).
+Node.js ile Chrome, Chromium veya Edge bulunan geliştirme ortamında PDF şu
+komutla yeniden üretilir:
+
+```sh
+node docs/ekip-kullanim/build-pdf.mjs
+```
 
 > Bu araç yalnız açık yasal yetkiyle kullanılmalıdır. Canlı edinim hedef
 > belleğini, işletim sistemi loglarını ve filesystem metadata'sını değiştirir.
@@ -34,6 +40,7 @@ Paylaşılabilir PDF sürümü:
 - Disk için güvenli ofset resume; RAM kesilirse yeni sıfır-ofset attempt.
 - Chunk/session/tam dosya SHA-256, sıralı Merkle root.
 - JSONL timeline, JSON/PDF rapor ve Ed25519 imzalı evidence index.
+- Linux RAM için imzalı AVML 0.20 ve hedef içinde loopback-only TCP streaming.
 
 ## Derleme
 
@@ -43,8 +50,8 @@ Go 1.26.5 gereklidir.
 make test
 make vet
 make reproducible
-make cross VERSION=0.6.5
-make desktop-packages VERSION=0.6.5
+make cross VERSION=0.6.6
+make desktop-packages VERSION=0.6.6
 ```
 
 Üretilen controller hedefleri:
@@ -83,15 +90,24 @@ Authenticode sertifikası gerekir. Agent binary'leri paket oluşturulurken ayrı
 Ed25519 tool-release anahtarıyla imzalanan manifest üzerinden doğrulanır; özel
 release anahtarı pakete dahil edilmez.
 
-GitHub'daki manuel `desktop-packages` workflow'u aynı dört paketi üretir.
-Çalıştırılmadan önce PKCS#8 Ed25519 özel anahtarı repository secret olarak
+Yayınlanan masaüstü ZIP'leri son kullanıcı bilgisayarında Go, Node.js, Python
+veya ayrı AVML kurulumu istemez. Desteklenen minimum istemci sistemleri macOS
+12 Monterey, Windows 10 ve Windows Server 2016'dır. Windows masaüstü penceresi
+işletim sistemiyle gelen Microsoft Edge'i, dosya seçiciler Windows PowerShell'i
+kullanır. Bunlar kurumsal olarak kaldırılmışsa CLI kullanılabilir veya ilgili
+Windows bileşenleri yeniden etkinleştirilmelidir.
+
+GitHub'daki `desktop-packages` workflow'u aynı dört paketi manuel olarak veya
+`v*` sürüm etiketi gönderildiğinde otomatik üretir. Etiket çalışmasında ZIP'ler
+ve `SHA256SUMS` dosyası GitHub Release olarak yayımlanır. Çalıştırılmadan önce
+PKCS#8 Ed25519 özel anahtarı repository secret olarak
 `TOOL_RELEASE_PRIVATE_PEM` adıyla tanımlanmalıdır. Workflow anahtarı loga veya
 artifact'e eklemez.
 
 Kaynak koddan yerel demo hazırlamak için:
 
 ```sh
-make demo VERSION=0.6.5
+make demo VERSION=0.6.6
 ```
 
 ## Anahtarlar ve imzalı araç paketi
@@ -175,8 +191,9 @@ Linux RAM seçimi AVML, ardından tam kernel eşleşmeli LiME'dir. Linux disk i�
 vendor-signed WinPmem sürücüsünü yükler, akışı doğrudan controller'a yollar ve
 işlem sonunda sürücüyü kaldırmayı dener.
 
-Linux arm64 RAM edinimi yalnız hedef çekirdeğe uygun imzalı LiME modülü
-sağlandığında mümkündür.
+Linux `amd64` ve `arm64` masaüstü paketlerinde AVML 0.20 hazırdır. LiME,
+AVML'nin hedef kernel güvenlik politikası nedeniyle kullanılamadığı ortamlarda
+yalnız hedef çekirdekle birebir uyumlu imzalı `.ko` sağlanırsa kullanılabilir.
 
 ## Doğrulama durumları
 
@@ -204,6 +221,20 @@ cleanup denenir ancak süresiz takılı kalmaz.
 
 Kaynak cihaz hiçbir zaman yazma modunda açılmaz; VSS/LVM snapshot veya uzak
 staging oluşturulmaz.
+
+## Genel `exit status 1` mesajı
+
+`exit status 1` yalnız alt sürecin başarısız kapandığını belirtir. Kök neden,
+bu satırdan önceki stderr/canlı kayıt ile vaka dizinindeki `events.jsonl`,
+artifact `sessions.jsonl` ve `state.json` kayıtlarında bulunur. Ağ kesintisinde
+disk aynı job ve output ile doğrulanmış ofsetten devam eder. RAM devam etmez;
+her yeniden çalışma yeni bir sıfır-ofset attempt üretir. Nihai karar için:
+
+```sh
+imajer verify --case-dir /evidence/CASE-ID/EVIDENCE-ID
+```
+
+çıktısında `ACQUISITION_VERIFIED` ve `PACKAGE_INTEGRITY_OK` aranmalıdır.
 
 ## Geliştirme doğrulaması
 

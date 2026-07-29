@@ -1,13 +1,20 @@
 package report
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/hakankrgz/imajer/internal/config"
+	"github.com/hakankrgz/imajer/internal/probe"
 )
 
 func TestIndexSignAndVerify(t *testing.T) {
@@ -84,5 +91,63 @@ func TestFinalizeIndexRejectsSymlink(t *testing.T) {
 	}
 	if _, err := FinalizeIndex(caseDir, "CASE", "EVID", keyPath); err == nil {
 		t.Fatal("symlink in evidence tree was accepted")
+	}
+}
+
+func TestReportLinesSummarizeStorageAndPreserveTurkish(t *testing.T) {
+	data := CaseReport{
+		Case: config.Case{Examiner: "Şule Işık"},
+		Target: probe.Info{
+			Storage: json.RawMessage(`{
+				"blockdevices": [
+					{"name":"loop0","type":"loop","size":4096,"alignment":0},
+					{"name":"nvme0n1","type":"disk","size":1073741824,"model":"Örnek Disk","serial":"ABC123","alignment":0,
+					 "children":[{"name":"nvme0n1p1","type":"part","size":1073741824}]}
+				]
+			}`),
+		},
+	}
+	lines := reportLines(data)
+	joined := strings.Join(lines, "\n")
+	for _, expected := range []string{
+		"İMAJER - UZAK ADLİ İMAJ ALMA RAPORU",
+		"İncelemeci: Şule Işık",
+		"Hedef depolama özeti:",
+		"/dev/nvme0n1 | boyut=1.00 GiB (1073741824 byte) | model=Örnek Disk | seri=ABC123",
+		"Ayrıntılı ham envanter: target-probe.json",
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("report is missing %q:\n%s", expected, joined)
+		}
+	}
+	for _, unwanted := range []string{`"alignment"`, "loop0", `"children"`} {
+		if strings.Contains(joined, unwanted) {
+			t.Fatalf("report contains raw storage detail %q:\n%s", unwanted, joined)
+		}
+	}
+}
+
+func TestReportTextRemovesControlCharacters(t *testing.T) {
+	got := sanitizeReportText("unexpected EOF\x00wait:\nremote\tcommand")
+	if got != "unexpected EOF wait: remote command" {
+		t.Fatalf("unexpected sanitized text: %q", got)
+	}
+}
+
+func TestPDFEscapeEncodesTurkishGlyphs(t *testing.T) {
+	got := []byte(pdfEscape(`ĞğİıŞş ÇçÖöÜü (test)\path`))
+	want := []byte{128, 129, 130, 131, 132, 133, ' ', 199, 231, 214, 246, 220, 252, ' ', '\\', '(', 't', 'e', 's', 't', '\\', ')', '\\', '\\', 'p', 'a', 't', 'h'}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("unexpected PDF encoding:\n got: %v\nwant: %v", got, want)
+	}
+}
+
+func TestAppendWrappedDoesNotSplitUTF8(t *testing.T) {
+	lines := appendWrapped(nil, strings.Repeat("ş", 106), 105)
+	if len(lines) != 2 || !utf8.ValidString(lines[0]) || !utf8.ValidString(lines[1]) {
+		t.Fatalf("wrapped lines are invalid: %#v", lines)
+	}
+	if len([]rune(lines[0])) != 105 || lines[1] != "ş" {
+		t.Fatalf("unexpected wrapping: lengths=%d/%d", len([]rune(lines[0])), len([]rune(lines[1])))
 	}
 }

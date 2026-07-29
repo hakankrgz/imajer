@@ -269,14 +269,14 @@ func hashOne(path string) (string, int64, error) {
 
 func reportLines(data CaseReport) []string {
 	lines := []string{
-		"IMAJER - UZAK ADLI IMAJ ALMA RAPORU",
+		"İMAJER - UZAK ADLİ İMAJ ALMA RAPORU",
 		"",
-		"Olusturma (UTC): " + data.GeneratedAt.Format(time.RFC3339Nano),
+		"Oluşturma (UTC): " + data.GeneratedAt.Format(time.RFC3339Nano),
 		"Vaka ID: " + data.Case.ID,
 		"Delil ID: " + data.Case.EvidenceID,
-		"Incelemeci: " + data.Case.Examiner,
+		"İncelemeci: " + data.Case.Examiner,
 		"Kurum: " + data.Case.Organization,
-		"Yetki referansi: " + data.Case.AuthorityRef,
+		"Yetki referansı: " + data.Case.AuthorityRef,
 		"Edinim profili: " + data.Profile,
 		"",
 		"HEDEF",
@@ -284,16 +284,24 @@ func reportLines(data CaseReport) []string {
 		"OS/Mimari: " + data.Target.OS + "/" + data.Target.Arch,
 		"Kernel/Build: " + data.Target.Kernel,
 		"Hedef saati (UTC): " + data.Target.UTC.Format(time.RFC3339Nano),
-		"Yonetici yetkisi: " + strconv.FormatBool(data.Target.Admin),
+		"Yönetici yetkisi: " + strconv.FormatBool(data.Target.Admin),
 		"Fiziksel RAM: " + strconv.FormatInt(data.Target.MemoryBytes, 10) + " byte",
-		"Yerel kanit filesystem: " + data.LocalStorage.FileSystem,
-		"Yerel bos alan: " + strconv.FormatUint(data.LocalStorage.Available, 10) + " byte",
+		"Yerel kanıt dosya sistemi: " + data.LocalStorage.FileSystem,
+		"Yerel boş alan: " + strconv.FormatUint(data.LocalStorage.Available, 10) + " byte",
 	}
 	if len(data.Target.Storage) > 0 {
-		lines = append(lines, "Hedef storage envanteri:")
-		lines = appendWrapped(lines, "  "+string(data.Target.Storage), 105)
+		lines = append(lines, "Hedef depolama özeti:")
+		summary := storageSummary(data.Target.Storage)
+		if len(summary) == 0 {
+			lines = append(lines, "  Envanter okunamadı; ham kayıt target-probe.json dosyasındadır.")
+		} else {
+			for _, item := range summary {
+				lines = appendWrapped(lines, "  "+item, 105)
+			}
+			lines = append(lines, "  Ayrıntılı ham envanter: target-probe.json")
+		}
 	}
-	lines = append(lines, "", "ARAC ENVANTERI")
+	lines = append(lines, "", "ARAÇ ENVANTERİ")
 	toolNames := make([]string, 0, len(data.Target.Tools))
 	for name := range data.Target.Tools {
 		toolNames = append(toolNames, name)
@@ -317,19 +325,19 @@ func reportLines(data CaseReport) []string {
 			"  Kaynak ID: "+a.SourceID,
 			"  Kaynak path: "+a.SourcePath,
 			"  Kaynak model: "+a.SourceModel,
-			"  Kaynak/sektor boyutu: "+strconv.FormatInt(a.SourceSize, 10)+"/"+strconv.FormatInt(a.SectorSize, 10)+" byte",
+			"  Kaynak/sektör boyutu: "+strconv.FormatInt(a.SourceSize, 10)+"/"+strconv.FormatInt(a.SectorSize, 10)+" byte",
 			"  Boyut: "+strconv.FormatInt(a.NextOffset, 10)+" byte",
-			"  Baslangic (UTC): "+a.StartedAt.Format(time.RFC3339Nano),
-			"  Bitis (UTC): "+a.CompletedAt.Format(time.RFC3339Nano),
-			"  Dogrulama seviyesi: "+a.Verification,
+			"  Başlangıç (UTC): "+a.StartedAt.Format(time.RFC3339Nano),
+			"  Bitiş (UTC): "+a.CompletedAt.Format(time.RFC3339Nano),
+			"  Doğrulama seviyesi: "+a.Verification,
 			"  Logical SHA-256: "+a.LogicalSHA256,
 			"  Chunk Merkle root: "+a.MerkleRoot,
-			"  Oturum sayisi: "+strconv.Itoa(a.SessionCount),
-			"  Retry sayisi: "+strconv.Itoa(a.RetryCount),
+			"  Oturum sayısı: "+strconv.Itoa(a.SessionCount),
+			"  Retry sayısı: "+strconv.Itoa(a.RetryCount),
 			"  Provider: "+strings.Join(a.Providers, ", "),
 		)
 		if a.Resumed {
-			lines = append(lines, "  UYARI: Canli disk farkli zamanlarda okunan parcalardan olusan bileşik imajdir.")
+			lines = append(lines, "  UYARI: Canlı disk farklı zamanlarda okunan parçalardan oluşan bileşik imajdır.")
 		}
 		for _, session := range data.Sessions[a.ArtifactID] {
 			lines = append(lines,
@@ -350,26 +358,167 @@ func reportLines(data CaseReport) []string {
 	lines = append(lines, data.Warnings...)
 	lines = append(lines,
 		"",
-		"Butunluk ayrintilari canonical JSON manifest ve events.jsonl dosyalarinda yer alir.",
-		"Zero disk footprint, hedefte imaj/staging verisi olusturulmadigini ifade eder;",
-		"gecici agent/arac dosyalari ve isletim sistemi audit kayitlari raporlanan yan etkilerdir.",
+		"Bütünlük ayrıntıları canonical JSON manifest ve events.jsonl dosyalarında yer alır.",
+		"Zero disk footprint, hedefte imaj/staging verisi oluşturulmadığını ifade eder;",
+		"geçici agent/araç dosyaları ve işletim sistemi audit kayıtları raporlanan yan etkilerdir.",
 	)
 	for i := range lines {
-		lines[i] = transliterate(lines[i])
+		lines[i] = sanitizeReportText(lines[i])
 	}
 	return lines
 }
 
 func appendWrapped(lines []string, value string, width int) []string {
-	for len(value) > width {
-		cut := strings.LastIndex(value[:width+1], " ")
-		if cut <= 0 {
-			cut = width
+	value = sanitizeReportText(value)
+	for len([]rune(value)) > width {
+		runes := []rune(value)
+		cut := width
+		for i := width; i > 0; i-- {
+			if runes[i] == ' ' {
+				cut = i
+				break
+			}
 		}
-		lines = append(lines, value[:cut])
-		value = strings.TrimSpace(value[cut:])
+		lines = append(lines, string(runes[:cut]))
+		value = strings.TrimSpace(string(runes[cut:]))
 	}
 	return append(lines, value)
+}
+
+func storageSummary(raw json.RawMessage) []string {
+	var root map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&root); err != nil {
+		return nil
+	}
+
+	if devices, ok := objectList(valueByName(root, "blockdevices")); ok {
+		var out []string
+		for _, device := range devices {
+			kind := textValue(valueByName(device, "type"))
+			if kind != "" && kind != "disk" {
+				continue
+			}
+			name := firstText(device, "path", "name", "kname")
+			if name != "" && !strings.HasPrefix(name, "/") {
+				name = "/dev/" + name
+			}
+			out = append(out, storageDeviceLine(name, device))
+		}
+		return out
+	}
+
+	if disks, ok := objectList(valueByName(root, "disks")); ok {
+		out := make([]string, 0, len(disks))
+		for _, disk := range disks {
+			out = append(out, storageDeviceLine(firstText(disk, "DeviceID", "Path", "Name"), disk))
+		}
+		return out
+	}
+	return nil
+}
+
+func objectList(value any) ([]map[string]any, bool) {
+	switch typed := value.(type) {
+	case []any:
+		out := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			if object, ok := item.(map[string]any); ok {
+				out = append(out, object)
+			}
+		}
+		return out, true
+	case map[string]any:
+		return []map[string]any{typed}, true
+	default:
+		return nil, false
+	}
+}
+
+func valueByName(object map[string]any, name string) any {
+	for key, value := range object {
+		if strings.EqualFold(key, name) {
+			return value
+		}
+	}
+	return nil
+}
+
+func firstText(object map[string]any, names ...string) string {
+	for _, name := range names {
+		if value := textValue(valueByName(object, name)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func textValue(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case json.Number:
+		return typed.String()
+	case float64:
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	default:
+		return ""
+	}
+}
+
+func storageDeviceLine(name string, device map[string]any) string {
+	if name == "" {
+		name = "Bilinmeyen aygıt"
+	}
+	parts := []string{name}
+	if size := textValue(valueByName(device, "size")); size != "" {
+		parts = append(parts, "boyut="+formatByteCount(size))
+	}
+	if model := firstText(device, "model"); model != "" {
+		parts = append(parts, "model="+model)
+	}
+	if serial := firstText(device, "serial", "SerialNumber"); serial != "" {
+		parts = append(parts, "seri="+serial)
+	}
+	if wwn := firstText(device, "wwn"); wwn != "" {
+		parts = append(parts, "WWN="+wwn)
+	}
+	return strings.Join(parts, " | ")
+}
+
+func formatByteCount(raw string) string {
+	size, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return raw + " byte"
+	}
+	const unit = uint64(1024)
+	if size < unit {
+		return strconv.FormatUint(size, 10) + " byte"
+	}
+	div, exp := unit, 0
+	for n := size / unit; n >= unit && exp < 5; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %ciB (%d byte)", float64(size)/float64(div), "KMGTPE"[exp], size)
+}
+
+func sanitizeReportText(value string) string {
+	var out strings.Builder
+	spacePending := false
+	for _, r := range strings.ToValidUTF8(value, "�") {
+		if r == '\n' || r == '\r' || r == '\t' || r < 0x20 || r == 0x7f {
+			spacePending = out.Len() > 0
+			continue
+		}
+		if spacePending && r != ' ' {
+			out.WriteByte(' ')
+		}
+		spacePending = false
+		out.WriteRune(r)
+	}
+	return strings.TrimSpace(out.String())
 }
 
 func writePDF(path string, lines []string) error {
@@ -401,7 +550,7 @@ func writePDF(path string, lines []string) error {
 		objects[contentObj-1] = []byte(fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content), content))
 	}
 	objects[1] = []byte(fmt.Sprintf("<< /Type /Pages /Count %d /Kids [%s] >>", pages, kids.String()))
-	objects[fontObj-1] = []byte("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+	objects[fontObj-1] = []byte("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [128 /Gbreve /gbreve /Idotaccent /dotlessi /Scedilla /scedilla] >> >>")
 
 	var out bytes.Buffer
 	out.WriteString("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n")
@@ -420,16 +569,36 @@ func writePDF(path string, lines []string) error {
 }
 
 func pdfEscape(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `(`, `\(`)
-	return strings.ReplaceAll(s, `)`, `\)`)
-}
-
-func transliterate(s string) string {
-	r := strings.NewReplacer(
-		"ç", "c", "Ç", "C", "ğ", "g", "Ğ", "G", "ı", "i", "İ", "I",
-		"ö", "o", "Ö", "O", "ş", "s", "Ş", "S", "ü", "u", "Ü", "U",
-		"â", "a", "î", "i", "û", "u",
-	)
-	return r.Replace(s)
+	var out strings.Builder
+	for _, r := range sanitizeReportText(s) {
+		var encoded byte
+		switch r {
+		case 'Ğ':
+			encoded = 128
+		case 'ğ':
+			encoded = 129
+		case 'İ':
+			encoded = 130
+		case 'ı':
+			encoded = 131
+		case 'Ş':
+			encoded = 132
+		case 'ş':
+			encoded = 133
+		default:
+			if r <= 0xff {
+				encoded = byte(r)
+			} else {
+				encoded = '?'
+			}
+		}
+		switch encoded {
+		case '\\', '(', ')':
+			out.WriteByte('\\')
+			out.WriteByte(encoded)
+		default:
+			out.WriteByte(encoded)
+		}
+	}
+	return out.String()
 }

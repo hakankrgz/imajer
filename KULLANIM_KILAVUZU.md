@@ -1,6 +1,6 @@
 # IMAJER Kullanım Kılavuzu
 
-Bu kılavuz `imajer 0.6.5` geliştirme sürümünün kurulmasını, vaka
+Bu kılavuz `imajer 0.6.6` sürümünün kurulmasını, vaka
 yapılandırmasını, uzak hedefin keşfedilmesini, RAM/disk edinimini, kesinti
 sonrası devam etmeyi ve kanıt paketini doğrulamayı anlatır.
 
@@ -91,10 +91,9 @@ sonunda geçici yetkiyi kaldırın:
 sudo rm /etc/sudoers.d/imajer-demo
 ```
 
-ARM64 disk edinimi native agent ile desteklenir. ARM64 RAM edinimi yalnız
-Raspberry Pi'nin çalışan çekirdeğiyle birebir uyumlu, imzalı LiME modülü
-hazırlanmışsa kullanılmalıdır; sınıf sunumunda böyle bir modül yoksa **Tüm
-disk** profilini seçin.
+ARM64 disk edinimi native agent ile desteklenir. Resmî masaüstü paketinde Linux
+ARM64 için imzalı AVML 0.20 bulunur. LiME kullanılacaksa modül Raspberry Pi'nin
+çalışan çekirdeğiyle birebir uyumlu ve imzalı olmalıdır.
 
 ## 2. Desteklenen binary'ler
 
@@ -138,14 +137,14 @@ Yerel build:
 ```sh
 make test
 make vet
-make build VERSION=0.6.5
+make build VERSION=0.6.6
 ```
 
 Tüm hedefler:
 
 ```sh
-make reproducible VERSION=0.6.5
-make cross VERSION=0.6.5
+make reproducible VERSION=0.6.6
+make cross VERSION=0.6.6
 ```
 
 Derlemelerde CGO kapalıdır. Ürünler `dist/` altına yazılır.
@@ -214,7 +213,7 @@ tool-bundle/
 
 ```yaml
 - name: imajer-agent
-  version: "0.6.5"
+  version: "0.6.6"
   os: linux
   arch: amd64
   path: ./imajer-agent-linux-amd64
@@ -452,7 +451,9 @@ acquisition:
 ```
 
 LiME modülü hedefin tam kernel sürümü ve mimarisi için önceden güvenilir
-ortamda derlenmiş olmalıdır. Linux ARM64 RAM edinimi için LiME gereklidir.
+ortamda derlenmiş olmalıdır. Resmî paket Linux `amd64` ve `arm64` AVML 0.20
+binary'lerini içerir. AVML, RAM'i hedefin yalnız `127.0.0.1` arayüzünde
+dinleyen agent soketine aktarır; hedefte RAM imaj/staging dosyası oluşturmaz.
 
 ### 7.4. Windows WinRM disk edinimi
 
@@ -772,6 +773,12 @@ status: incomplete
 olarak korunur. Yeni attempt sıfır ofsetten başlar. Yalnız kesintisiz tamamlanan
 RAM attempt'i doğrulanmış kanıt sayılır.
 
+`both` profilinde her yeniden çalışma RAM'i önce yeniden alır, sonra mevcut disk
+state'i varsa diski doğrulanmış ofsetten sürdürür. Bu nedenle ağ kesintisi
+sonrasında aynı job birkaç kez çalıştırılırsa birden fazla tamamlanmış
+`memory-attempt-NNN` bulunabilir. Bunlar farklı zamanların canlı RAM
+snapshot'larıdır; SHA-256 değerlerinin farklı olması beklenir.
+
 ## 13. Kanıt paketini doğrulama
 
 Önerilen yöntem, paket dışından güvenilen examiner public key kullanmaktır:
@@ -888,6 +895,23 @@ yeni imzalı indeks üretin.
 
 ## 18. Sık karşılaşılan hatalar
 
+### `İşlem başarısız: exit status 1`
+
+Bu mesaj kök neden değil, alt sürecin genel kapanış kodudur. Önce canlı kayıtta
+bu satırın öncesini; ardından vaka dizinindeki şu dosyaları inceleyin:
+
+```text
+events.jsonl
+artifacts/<artifact>/state.json
+artifacts/<artifact>/sessions.jsonl
+```
+
+`unexpected EOF`, `connection lost` veya `network is unreachable` görülürse
+bağlantı kesilmiştir. Disk için aynı job/output ile `resume` kullanılabilir.
+RAM kaldığı yerden devam etmez ve yeni bir sıfır-ofset attempt olarak alınır.
+Bir çalışma hata vermiş olsa bile daha sonraki resume diski tamamlamış olabilir;
+son durum mutlaka `imajer verify --case-dir ...` ile kontrol edilmelidir.
+
 ### `case.authorized must be true`
 
 Job içindeki açık yasal yetki onayı eksiktir:
@@ -1000,9 +1024,10 @@ Edinim sonrası:
 - Canlı fiziksel disk kesintisiz edinimde dahi tek atomik zamanı temsil etmez.
 - FTK'ye özgü otomatik provider adapter'ı yoktur.
 - Windows ARM64 controller vardır; uzak Windows agent yalnız amd64'tür.
-- Linux ARM64 RAM yalnız exact-kernel güvenilir LiME modülüyle desteklenir.
-- PDF Türkçe içeriklidir fakat mevcut font katmanı bazı Türkçe karakterleri
-  ASCII karşılıklarına dönüştürür.
+- Linux ARM64 masaüstü paketinde AVML 0.20 bulunur; LiME kullanılırsa
+  exact-kernel güvenilir ve imzalı modül gerekir.
+- PDF raporu Türkçe karakterleri destekler; kontrol karakterleri temizlenir ve
+  ham depolama JSON'u yerine okunabilir fiziksel disk özeti gösterilir.
 
 Güncel teknik eksik ve kabul durumu için
 [`PLAN_EKSIK_ANALIZI.md`](PLAN_EKSIK_ANALIZI.md) dosyasına bakın.

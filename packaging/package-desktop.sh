@@ -3,7 +3,7 @@ set -eu
 
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 GO_BIN=${GO:-go}
-VERSION=${VERSION:-0.6.5}
+VERSION=${VERSION:-0.6.6}
 DIST_DIR="$PROJECT_DIR/dist"
 BUILD_DIR="$DIST_DIR/package-build"
 PACKAGE_DIR="$DIST_DIR/packages"
@@ -46,7 +46,12 @@ build_controller() {
     fi
   fi
   echo "Controller: $target_os/$target_arch ($mode)"
-  CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" "$GO_BIN" build \
+  if [ "$target_arch" = amd64 ]; then
+    arch_compatibility="GOAMD64=v1"
+  else
+    arch_compatibility="GOARM64=v8.0"
+  fi
+  env CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" "$arch_compatibility" "$GO_BIN" build \
     -buildvcs=false -trimpath -ldflags "$ldflags" -o "$output" "$PROJECT_DIR/cmd/imajer"
 }
 
@@ -55,7 +60,12 @@ build_agent() {
   target_arch=$2
   output=$3
   echo "Agent: $target_os/$target_arch"
-  CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" "$GO_BIN" build \
+  if [ "$target_arch" = amd64 ]; then
+    arch_compatibility="GOAMD64=v1"
+  else
+    arch_compatibility="GOARM64=v8.0"
+  fi
+  env CGO_ENABLED=0 GOOS="$target_os" GOARCH="$target_arch" "$arch_compatibility" "$GO_BIN" build \
     -buildvcs=false -trimpath -ldflags "$BASE_LDFLAGS" -o "$output" "$PROJECT_DIR/cmd/imajer-agent"
 }
 
@@ -102,14 +112,14 @@ build_macos_shell() {
   echo "Native macOS window: $target_arch"
   CLANG_MODULE_CACHE_PATH="$module_cache" SWIFT_MODULECACHE_PATH="$module_cache" \
     xcrun swiftc -O -swift-version 5 \
-    -target "$swift_arch-apple-macos11.0" \
+    -target "$swift_arch-apple-macos12.0" \
     -sdk "$sdk_path" \
     -framework Cocoa -framework WebKit \
     -o "$output" "$PROJECT_DIR/packaging/macos/IMAJERApp.swift"
 }
 
 echo "IMAJER Desktop $VERSION paketleri hazırlanıyor..."
-CGO_ENABLED=0 "$GO_BIN" build -buildvcs=false -trimpath -ldflags "$BASE_LDFLAGS" \
+CGO_ENABLED=0 GOAMD64=v1 GOARM64=v8.0 "$GO_BIN" build -buildvcs=false -trimpath -ldflags "$BASE_LDFLAGS" \
   -o "$SIGN_TOOL" "$PROJECT_DIR/cmd/imajer"
 
 build_agent darwin amd64 "$AGENT_DIR/imajer-agent-darwin-amd64"

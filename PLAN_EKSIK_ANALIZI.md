@@ -1,8 +1,8 @@
 # Plan Uygunluk ve Eksik Analizi
 
 Tarih: 2026-07-29
-Revizyon: 9 — kanıt yolu sertleştirmesi, güvenli doğrulama sırası ve kontrollü iptal
-Doğrulanan geliştirme sürümü: `0.6.5`
+Revizyon: 10 — taşınabilir masaüstü paketleri ve okunabilir PDF raporu
+Doğrulanan geliştirme sürümü: `0.6.6`
 
 ## 1. Güncel sonuç
 
@@ -68,7 +68,7 @@ tam kaynak hash'i varmış gibi gösterilmez; her oturum ayrı karşılaştırı
 
 Aynı sürümde Linux envanteri root yanında `sudo -n` yetkisini de tanır.
 Raspberry Pi SD/eMMC hedefleri için `mmcblk` path fallback'i, CID/name kimliği,
-bağlı bölüm uyarısı ve ARM64 RAM/LiME sınırlaması eklenmiştir. `/dev/shm`
+bağlı bölüm uyarısı ve ARM64 RAM provider uyarıları eklenmiştir. `/dev/shm`
 `noexec` ise agent hash doğrulamasından sonra gerçek çalıştırma testi başarısız
 olur, dosya temizlenir ve `/tmp` adayına geçilir.
 
@@ -81,6 +81,22 @@ hash alanlarına sınır denetimi uygular. Retry değerleri sınırlanmış, SSH
 socket'i tüm kapanış yollarında kapatılmış ve Windows masaüstü iptali doğrudan
 process kill yerine çocuğun cleanup/rapor akışını çalıştıran kontrollü iptal
 sinyaline geçirilmiştir.
+
+Aynı sürümde resmî AVML 0.20 `amd64` ve `arm64` binary'leri sabit SHA-256 ile
+paketlenir. RAM verisi AVML'den agent'a hedefin yalnız loopback arayüzündeki TCP
+soketiyle aktarılır; `/dev/stdout` sembolik bağlantısına veya hedefte RAM imaj
+dosyasına ihtiyaç duyulmaz. Uzun yerel hash/rapor aşamasından sonra cleanup
+öncesi doğrulanmış transport yeniden kurulur. Üç sıfır-ofset RAM attempt'i de
+başarısız olursa son provider hatası genel hata içinde korunur.
+
+`0.6.6` ile PDF raporundaki ham `lsblk`/CIM JSON dökümü fiziksel disklerin
+okunabilir özetine çevrilmiş, Türkçe karakter desteği ve kontrol karakteri
+temizliği eklenmiştir. Masaüstü build'leri en geniş işlemci uyumluluğu için
+`GOAMD64=v1` ve `GOARM64=v8.0` tabanında sabitlenmiştir. Temiz kaynak
+checkout'unda `make build` artık `dist` dizinini kendisi oluşturur. macOS
+paketinin minimum sistemi Go 1.26 çalışma zamanı ile uyumlu biçimde macOS 12
+olarak düzeltilmiş; Windows 10/Server 2016 minimumu ve Windows'un Edge/
+PowerShell sistem bileşenleri açıkça belgelenmiştir.
 
 Bu sertleştirmeler birim ve regresyon testleriyle; `go test ./...`,
 `go test -race ./...`, `go vet ./...`, reproducible/cross build, protokol fuzz,
@@ -177,17 +193,16 @@ başarıyı yanlış biçimde engellemez.
 
 ### P0-05 — Ayrıcalıklı entegrasyon matrisi
 
-**Durum: Kısmi — Linux arm64 SSH regular-file E2E geçti; matrisin kalanı
-laboratuvar gerekli.**
+**Durum: Kısmi — Linux arm64 regular-file ile AWS Linux amd64 AVML/raw EBS
+E2E geçti; matrisin kalanı laboratuvar gerekli.**
 
 Eksik yürütmeler:
 
-- Linux amd64 SSH VM.
 - Linux arm64 üzerinde gerçek raw block device (regular-file akışı geçti).
 - Windows Server 2019/2022/2025 WinRM HTTPS VM.
-- AVML, hedef-kernel LiME ve WinPmem ayrıcalıklı edinimleri.
+- Hedef-kernel LiME ve WinPmem ayrıcalıklı edinimleri.
 - APFS dışında NTFS ve exFAT kanıt deposu.
-- Ağ fault proxy ile gerçek TCP/SSH/WSMan kopması.
+- Ağ fault proxy ile deterministik TCP/SSH/WSMan kopma matrisi.
 
 Bu sonuçlar sürüm, hedef build/kernel, kullanılan tool hash'i ve test kanıt
 paketiyle ayrıca arşivlenmelidir.
@@ -210,6 +225,20 @@ Tamamlanan Linux arm64 SSH testi:
 
 Tekrarlanabilir düzenek: `test/remote-ssh/run-test.sh`
 Arşivlenmiş özet: `test/remote-ssh/TEST_SONUCU.md`
+
+Tamamlanan AWS Linux amd64 testi:
+
+- Hedef: AWS Linux `amd64`, kernel `7.0.0-1006-aws`, parolasız sudo.
+- RAM: imzalı resmî AVML 0.20, loopback-only TCP streaming, hedefte RAM imaj
+  dosyası yok; `1.023.342.556` byte, `verified_continuous`, retry `0`.
+- Disk: 8 GiB Amazon EBS raw block device, native read-only provider.
+- İki gerçek bağlantı kesintisinden sonra doğrulanmış
+  `2.332.033.024` ve `7.038.042.112` byte ofsetlerinden devam edildi.
+- Sonuç: disk `chunk_verified_composite`, 1024 doğrulanmış 8 MiB chunk,
+  3 session, retry `2`; imzalı evidence index `PACKAGE_INTEGRITY_OK`.
+- Son çalışmada geçici AVML, agent ve case marker otomatik kaldırıldı.
+- Birden fazla `both` çalışması her seferinde yeni, kesintisiz ve doğrulanmış
+  RAM snapshot'ı üretirken mevcut disk state'ini kaldığı ofsetten sürdürdü.
 
 ## 3. Tamamlanan plan maddeleri
 
@@ -463,6 +492,8 @@ notarization ve Windows Authenticode imzalama henüz yoktur.
 
 - Yetkili laboratuvar/development ortamında local regular-file disk acquisition.
 - İzole Linux arm64 hedefinde gerçek SSH/SFTP regular-file disk acquisition.
+- AWS Linux amd64 hedefinde AVML RAM ve raw EBS disk acquisition.
+- Gerçek SSH/ağ kesintilerinden disk ofset-resume ve sonrasında tam cleanup.
 - Kanıt formatı, resume algoritması, chunk/session/logical bütünlük modeli.
 - Native controller/agent build'leri.
 - İmzalı evidence package oluşturma ve bağımsız doğrulama.

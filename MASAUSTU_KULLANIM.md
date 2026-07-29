@@ -1,9 +1,13 @@
-# IMAJER Masaüstü Kullanımı
+# IMAJER 0.6.6 Masaüstü Kullanımı
 
 IMAJER masaüstü paketi Terminal veya YAML kullanmadan, çift tıklayarak
 çalıştırılabilir. Safari, Chrome veya normal bir tarayıcı sekmesi açılmaz.
 Arayüz IMAJER'in kendi penceresinde gösterilir. Yerel arka uç yalnız bu
 bilgisayardaki `127.0.0.1` adresini dinler; internete yayınlanmaz.
+
+Yayınlanan ZIP paketi son kullanıcı bilgisayarında Go, Node.js, Python veya
+ayrı AVML kurulumu istemez. Minimum istemci sistemi macOS 12 Monterey ya da
+Windows 10/Windows Server 2016'dır.
 
 ## Bu Mac'te
 
@@ -29,6 +33,10 @@ Kanıtlar varsayılan olarak `Belgeler/IMAJER-Evidence` dizinine yazılır. Uygu
 ilk açılışta incelemeci Ed25519 imza anahtarını
 `~/Library/Application Support/IMAJER/keys` altında otomatik oluşturur.
 
+Linux `amd64` ve `arm64` paketlerinde imzalı Microsoft AVML 0.20 hazır gelir;
+ayrıca AVML kurmanız gerekmez. RAM verisi hedefte yalnız loopback
+`127.0.0.1` üzerinden agent'a aktarılır ve hedef diskte RAM imajı oluşturulmaz.
+
 ## Başka bir Mac'te
 
 - M1, M2, M3, M4 veya sonraki Apple işlemcileri için
@@ -53,6 +61,11 @@ uygulama profilini kullanır; normal Edge sekmeleriniz açılmaz. Windows
 SmartScreen imzasız uygulama uyarısı gösterirse **Ek bilgi** ve ardından
 **Yine de çalıştır** seçilebilir.
 
+Windows masaüstü paketi, Windows ile gelen Microsoft Edge ve Windows
+PowerShell bileşenlerini kullanır. Kurum imajında bu bileşenler kaldırılmışsa
+arayüz penceresi veya dosya seçici çalışmaz; CLI kullanılabilir ya da sistem
+bileşenleri kurum yöneticisi tarafından yeniden etkinleştirilmelidir.
+
 Windows'ta uygulama ayarları ve otomatik oluşturulan incelemeci anahtarı
 `%AppData%\IMAJER` altında, kanıtlar varsayılan olarak
 `Belgeler\IMAJER-Evidence` altında tutulur.
@@ -70,3 +83,8 @@ Windows'ta uygulama ayarları ve otomatik oluşturulan incelemeci anahtarı
 - “Zero disk footprint”, hedefte imaj veya staging parçası oluşturulmaması
   anlamındadır; uzak erişim ve sürücü/agent işlemleri sistem loglarında iz
   bırakabilir.
+- Genel `exit status 1` mesajı kök neden değildir. Canlı kayıttaki önceki hata,
+  `events.jsonl`, artifact `state.json` ve son **Kanıt doğrula** sonucu birlikte
+  değerlendirilmelidir.
+- Kesilen disk aynı job ile doğrulanmış ofsetten devam edebilir. RAM devam
+  etmez; yeni bir sıfır-ofset attempt olarak yeniden alınır.

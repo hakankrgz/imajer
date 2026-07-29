@@ -1,4 +1,4 @@
-# IMAJER Basit Arayüz Kullanımı
+# IMAJER 0.6.6 Basit Arayüz Kullanımı
 
 ## macOS
 
@@ -62,12 +62,34 @@ açıkça gösterir.
 Bağlantı kesildiyse **Mevcut işlem** sekmesinde arayüzün kaydettiği job
 dosyasını seçip **Devam et** düğmesine basın.
 
+Disk doğrulanmış son ofsetten devam eder. RAM devam ettirilemez; her yeniden
+başlatmada yeni ve sıfır-ofset bir `memory-attempt-NNN` alınır. Bu nedenle
+`RAM + Disk` işlemini disk kesintisinden sonra yeniden çalıştırmak yeni bir RAM
+snapshot'ı oluşturabilir.
+
+## Hata mesajını yorumlama
+
+`İşlem başarısız: exit status 1` genel bir kapanış kodudur. Asıl neden için
+**Canlı kayıt** alanında bu mesajdan önceki satırlara bakın:
+
+- `network is unreachable`, `unexpected EOF`: bağlantı kesilmiştir; disk için
+  aynı job ile **Devam et** kullanılabilir.
+- `RAM acquisition failed...`: ilgili `memory-attempt-NNN/state.json`
+  içindeki `last_error` incelenmelidir.
+- `cleanup ... retained`: kanıt silinmemiştir; hedefteki geçici agent/araç için
+  **Temizle** çalıştırılmalıdır.
+
+İşlemin gerçek bütünlük sonucu **Kanıt doğrula** ekranındaki
+`ACQUISITION_VERIFIED` ve `PACKAGE_INTEGRITY_OK` kayıtlarıdır.
+
 ## Güvenlik
 
 - Uygulama penceresinin arka ucu yalnız `127.0.0.1` üzerinde çalışır ve ağa
   yayınlanmaz.
 - Aynı anda yalnız bir işlem başlatılabilir.
 - Parola arayüz sürecinin belleğinde tutulur; job, log veya rapora yazılmaz.
+- Linux RAM, imzalı AVML 0.20 ile hedefin yalnız `127.0.0.1` arayüzündeki
+  geçici TCP soketinden agent'a akar; hedef diskte RAM imajı oluşturulmaz.
 - **İşlemi güvenle durdur** düğmesi acquisition sürecine iptal sinyali gönderir
   ve sınırlı cleanup işleminin tamamlanmasını bekler.
 - Native uygulama penceresini kapatmak yerel arka ucu da kapatır. Çalışan bir

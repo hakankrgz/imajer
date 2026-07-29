@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	version           = "0.6.5"
+	version           = "0.6.6"
 	desktopMode       = "false"
 	desktopWindowMode = "false"
 )
