@@ -43,8 +43,8 @@ func Collect() Info {
 	info.Admin = isAdmin()
 	info.MemoryBytes = physicalMemory()
 	info.Kernel, info.Storage, info.Warnings = platformDetails()
-	if info.OS == "linux" && info.Arch != "amd64" {
-		info.Warnings = append(info.Warnings, "AVML is x86-64 only; this target requires an exact-kernel LiME module for RAM acquisition")
+	if info.OS == "linux" && info.Arch != "amd64" && info.Arch != "arm64" {
+		info.Warnings = append(info.Warnings, "Bundled AVML supports amd64 and arm64; this target requires another signed RAM provider")
 	}
 	return info
 }

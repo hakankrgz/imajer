@@ -3,7 +3,7 @@ set -eu
 
 PROJECT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 GO_BIN=${GO:-go}
-VERSION=${VERSION:-0.6.3}
+VERSION=${VERSION:-0.6.4}
 DIST_DIR="$PROJECT_DIR/dist"
 BUILD_DIR="$DIST_DIR/package-build"
 PACKAGE_DIR="$DIST_DIR/packages"
@@ -12,6 +12,10 @@ KEY_DIR=${IMAJER_RELEASE_KEY_DIR:-"$PROJECT_DIR/.release-keys"}
 SIGN_TOOL="$BUILD_DIR/sign-tool"
 BASE_LDFLAGS="-s -w -X main.version=$VERSION"
 DESKTOP_LDFLAGS="$BASE_LDFLAGS -X main.desktopMode=true -X main.desktopWindowMode=true"
+AVML_VERSION=0.20.0
+AVML_BASE_URL="https://github.com/microsoft/avml/releases/download/v$AVML_VERSION"
+AVML_AMD64_SHA256=79094391156f778db695cde0f84c36c3ad16987b51d80ea02f4a2ffe703b9f47
+AVML_ARM64_SHA256=eef365674a9a8cdfa79da8ff1ad4bcb92db0705b32c07f7ca0efc361e543581e
 
 if [ "$(uname -s)" != Darwin ]; then
   echo "Tam masaüstü paketleme macOS üzerinde çalıştırılmalıdır." >&2
@@ -55,6 +59,32 @@ build_agent() {
     -buildvcs=false -trimpath -ldflags "$BASE_LDFLAGS" -o "$output" "$PROJECT_DIR/cmd/imajer-agent"
 }
 
+fetch_verified_avml() {
+  source_name=$1
+  output=$2
+  expected_sha256=$3
+  if [ -n "${IMAJER_AVML_SOURCE_DIR:-}" ]; then
+    source_path="$IMAJER_AVML_SOURCE_DIR/$source_name"
+    if [ ! -f "$source_path" ]; then
+      echo "AVML kaynak dosyası bulunamadı: $source_path" >&2
+      exit 1
+    fi
+    cp "$source_path" "$output"
+  else
+    echo "AVML v$AVML_VERSION indiriliyor: $source_name"
+    curl --fail --location --proto '=https' --tlsv1.2 \
+      "$AVML_BASE_URL/$source_name" --output "$output"
+  fi
+  actual_sha256=$(shasum -a 256 "$output" | awk '{print $1}')
+  if [ "$actual_sha256" != "$expected_sha256" ]; then
+    echo "AVML SHA-256 doğrulaması başarısız: $source_name" >&2
+    echo "Beklenen: $expected_sha256" >&2
+    echo "Bulunan:  $actual_sha256" >&2
+    exit 1
+  fi
+  chmod 755 "$output"
+}
+
 build_macos_shell() {
   target_arch=$1
   output=$2
@@ -88,6 +118,8 @@ build_agent linux amd64 "$AGENT_DIR/imajer-agent-linux-amd64"
 build_agent linux arm64 "$AGENT_DIR/imajer-agent-linux-arm64"
 build_agent windows amd64 "$AGENT_DIR/imajer-agent-windows-amd64.exe"
 build_agent windows arm64 "$AGENT_DIR/imajer-agent-windows-arm64.exe"
+fetch_verified_avml avml-minimal "$AGENT_DIR/avml-linux-amd64" "$AVML_AMD64_SHA256"
+fetch_verified_avml avml-minimal-aarch64 "$AGENT_DIR/avml-linux-arm64" "$AVML_ARM64_SHA256"
 
 if [ ! -f "$KEY_DIR/tool-release-private.pem" ]; then
   echo "Yerel tool-release Ed25519 anahtarı oluşturuluyor: $KEY_DIR"
@@ -139,6 +171,18 @@ cat >"$AGENT_DIR/tools.yaml" <<EOF
   arch: arm64
   path: ./imajer-agent-windows-arm64.exe
   license: Apache-2.0
+- name: avml
+  version: "$AVML_VERSION"
+  os: linux
+  arch: amd64
+  path: ./avml-linux-amd64
+  license: MIT
+- name: avml
+  version: "$AVML_VERSION"
+  os: linux
+  arch: arm64
+  path: ./avml-linux-arm64
+  license: MIT
 EOF
 (
   cd "$AGENT_DIR"
@@ -157,7 +201,8 @@ make_macos_package() {
   stage="$BUILD_DIR/macos-$arch"
   app="$stage/IMAJER.app"
   mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/agents" \
-    "$app/Contents/Resources/bin" "$app/Contents/Resources/docs"
+    "$app/Contents/Resources/bin" "$app/Contents/Resources/docs" \
+    "$app/Contents/Resources/licenses"
   build_macos_shell "$arch" "$app/Contents/MacOS/IMAJER"
   build_controller darwin "$arch" "$app/Contents/MacOS/imajer-core" cli
   build_controller darwin "$arch" "$app/Contents/Resources/bin/imajer-cli" cli
@@ -167,6 +212,8 @@ make_macos_package() {
   cp "$AGENT_DIR"/* "$app/Contents/Resources/agents/"
   cp "$PROJECT_DIR/MASAUSTU_KULLANIM.md" "$app/Contents/Resources/docs/"
   cp "$PROJECT_DIR/LICENSE" "$app/Contents/Resources/"
+  cp "$PROJECT_DIR/packaging/third-party/AVML-LICENSE" \
+    "$app/Contents/Resources/licenses/AVML-LICENSE"
   chmod 755 "$app/Contents/MacOS/IMAJER" "$app/Contents/MacOS/imajer-core" \
     "$app/Contents/Resources/bin/imajer-cli"
   codesign --force --deep --sign - "$app"
@@ -179,12 +226,13 @@ make_windows_package() {
   arch=$1
   label=$2
   stage="$BUILD_DIR/IMAJER-Windows-$label"
-  mkdir -p "$stage/agents" "$stage/docs"
+  mkdir -p "$stage/agents" "$stage/docs" "$stage/licenses"
   build_controller windows "$arch" "$stage/IMAJER.exe" desktop
   build_controller windows "$arch" "$stage/imajer-cli.exe" cli
   cp "$AGENT_DIR"/* "$stage/agents/"
   cp "$PROJECT_DIR/MASAUSTU_KULLANIM.md" "$stage/docs/"
   cp "$PROJECT_DIR/LICENSE" "$stage/"
+  cp "$PROJECT_DIR/packaging/third-party/AVML-LICENSE" "$stage/licenses/AVML-LICENSE"
   cat >"$stage/BASLAT.txt" <<EOF
 IMAJER $VERSION
 

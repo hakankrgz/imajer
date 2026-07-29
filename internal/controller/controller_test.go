@@ -18,6 +18,7 @@ import (
 
 	"github.com/hakankrgz/imajer/internal/config"
 	"github.com/hakankrgz/imajer/internal/evidence"
+	"github.com/hakankrgz/imajer/internal/probe"
 	"github.com/hakankrgz/imajer/internal/protocol"
 	"github.com/hakankrgz/imajer/internal/report"
 	"github.com/hakankrgz/imajer/internal/transport"
@@ -95,6 +96,30 @@ func TestRAMRestartsAtZeroAfterInterruption(t *testing.T) {
 	}
 	if first.Status != evidence.StatusIncomplete || first.NextOffset == 0 {
 		t.Fatalf("first RAM attempt was not preserved: %#v", first)
+	}
+}
+
+func TestValidateLinuxRAMProviderRequiresAvailableSignedTool(t *testing.T) {
+	base := &Controller{
+		Job: &config.Job{Acquisition: config.Acquisition{
+			Profile: "both",
+			RAM:     config.Source{Provider: "auto"},
+		}},
+		Probe: probe.Info{OS: "linux", Arch: "amd64", Tools: map[string]probe.Tool{}},
+	}
+	if err := base.validateRAMProvider(); err == nil || !strings.Contains(err.Error(), "imzalı AVML") {
+		t.Fatalf("missing AVML was not rejected: %v", err)
+	}
+
+	base.Job.Acquisition.RAM.ToolPath = "/dev/shm/imajer/avml-linux-amd64"
+	if err := base.validateRAMProvider(); err != nil {
+		t.Fatalf("uploaded signed AVML was rejected: %v", err)
+	}
+
+	base.Job.Acquisition.RAM.ToolPath = ""
+	base.Probe.Tools["avml"] = probe.Tool{Path: "/usr/local/bin/avml", Version: "0.20.0"}
+	if err := base.validateRAMProvider(); err != nil {
+		t.Fatalf("preinstalled AVML was rejected: %v", err)
 	}
 }
 

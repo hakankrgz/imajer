@@ -3,6 +3,7 @@ let defaults = {};
 let lastLogCount = -1;
 let lastTransport = "";
 let inventoryDisks = [];
+let inventoryInfo = null;
 let inventoryReady = false;
 let pendingHostKeyFingerprint = "";
 let lastFinishedAt = "";
@@ -59,11 +60,13 @@ function updateConditionalFields() {
     if (recommended) $("#agentLocal").value = recommended;
     lastTransport = transport;
   }
+  configureRAMTool();
 }
 
 function clearInventory() {
   inventoryReady = false;
   inventoryDisks = [];
+  inventoryInfo = null;
   pendingHostKeyFingerprint = "";
   $("#hostKeyReview").classList.add("hidden");
   $("#hostKeyFingerprint").textContent = "";
@@ -72,6 +75,36 @@ function clearInventory() {
   select.value = "";
   clearSelectedDisk();
   $("#targetScanStatus").textContent = "Bağlantı bilgilerini girip bu düğmeye basın.";
+}
+
+function configureRAMTool() {
+  const status = $("#ramToolStatus");
+  if (!status) return;
+  const profile = $('input[name="profile"]:checked')?.value || "disk";
+  const transport = $('input[name="transport"]:checked')?.value || "local";
+  if (profile === "disk") return;
+  if (transport !== "ssh") {
+    status.textContent = "RAM yöntemi hedef işletim sistemi ve mimarisine göre otomatik seçilir.";
+    return;
+  }
+  if (!inventoryInfo) {
+    status.textContent = "Önce hedefe bağlanın; imzalı RAM aracı hedef mimarisine göre seçilecektir.";
+    return;
+  }
+  if (inventoryInfo.os !== "linux") {
+    status.textContent = "Bu hedef için RAM yöntemi otomatik belirlenecektir.";
+    return;
+  }
+  const selector = `${inventoryInfo.os}_${inventoryInfo.arch}`;
+  const tool = defaults.ram_tools?.[selector] || "";
+  if (!tool) {
+    status.textContent = `Bu pakette ${inventoryInfo.os}/${inventoryInfo.arch} için imzalı RAM aracı bulunmuyor.`;
+    return;
+  }
+  $('[name="ram_provider"]').value = "avml";
+  $('[name="ram_tool_name"]').value = "avml";
+  $('[name="ram_tool_local"]').value = tool;
+  status.textContent = `İmzalı AVML otomatik seçildi: ${inventoryInfo.os}/${inventoryInfo.arch}`;
 }
 
 function clearSelectedDisk() {
@@ -180,7 +213,9 @@ async function scanTarget() {
       })
     });
     inventoryReady = true;
+    inventoryInfo = inventory;
     inventoryDisks = inventory.disks || [];
+    configureRAMTool();
     const select = $("#diskSelect");
     select.innerHTML = '<option value="">Bir fiziksel disk seçin</option>';
     inventoryDisks.forEach((disk, index) => {
@@ -223,6 +258,13 @@ function newJobPayload() {
   }
   if (transport !== "local" && profile !== "ram" && !$('[name="disk_path"]').value.trim()) {
     throw new Error("İmajı alınacak fiziksel diski listeden seçin");
+  }
+  if (transport === "ssh" && profile !== "disk") {
+    const provider = $('[name="ram_provider"]').value || "auto";
+    const toolPath = $('[name="ram_tool_local"]').value.trim();
+    if ((provider === "auto" || provider === "avml") && !toolPath) {
+      throw new Error("RAM edinimi için hedefe uygun imzalı AVML aracı seçilemedi");
+    }
   }
   if (!form.reportValidity()) throw new Error("Lütfen zorunlu alanları doldurun");
   const data = new FormData(form);
@@ -543,6 +585,8 @@ async function initialise() {
   $("#verifyCaseDir").value = defaults.demo_available ? defaults.demo_case_dir : "";
   $("#verifyPublicKey").value = defaults.demo_available ? defaults.demo_public_key : (defaults.default_public_key || "");
   $("#agentLocal").value = defaults.default_agent;
+  $('[name="case_id"]').value = defaults.default_case_id || "";
+  $('[name="evidence_id"]').value = defaults.default_evidence_id || "EVID-001";
   $('[name="output_directory"]').value = defaults.default_output || `${defaults.working_dir}/evidence`;
   $('[name="signing_key"]').value = defaults.default_signing_key || "";
   $('[name="tool_manifest"]').value = defaults.tool_manifest || "";

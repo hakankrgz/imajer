@@ -1,8 +1,12 @@
 package transport
 
 import (
+	"errors"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/pkg/sftp"
 )
 
 func TestPOSIXQuoting(t *testing.T) {
@@ -28,5 +32,18 @@ func TestWindowsQuoting(t *testing.T) {
 	}
 	if _, err := quoteWindows([]string{"agent", "bad\rargument"}); err == nil {
 		t.Fatal("expected control-character rejection")
+	}
+}
+
+func TestSFTPNotExistDetection(t *testing.T) {
+	if !isSFTPNotExist(os.ErrNotExist) {
+		t.Fatal("os.ErrNotExist was not recognized")
+	}
+	status := &sftp.StatusError{Code: uint32(sftp.ErrSSHFxNoSuchFile)}
+	if !isSFTPNotExist(status) {
+		t.Fatal("SFTP no-such-file status was not recognized")
+	}
+	if isSFTPNotExist(errors.New("permission denied")) {
+		t.Fatal("unrelated SFTP error was ignored")
 	}
 }

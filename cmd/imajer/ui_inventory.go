@@ -337,7 +337,7 @@ func (s *uiServer) handleInventory(w http.ResponseWriter, r *http.Request) {
 		inventory.Warnings = append(inventory.Warnings, "Hedefte seçilebilir fiziksel disk bulunamadı")
 	}
 	if inventory.OS == "linux" && inventory.Arch == "arm64" {
-		inventory.Warnings = append(inventory.Warnings, "Raspberry Pi/ARM64 disk edinimi desteklenir; RAM edinimi için hedef çekirdekle birebir uyumlu, imzalı LiME modülü gerekir")
+		inventory.Warnings = append(inventory.Warnings, "Linux ARM64 RAM ediniminde paketlenmiş imzalı AVML otomatik seçilir; kernel erişim politikası yine doğrulanmalıdır")
 	}
 	for _, disk := range inventory.Disks {
 		if !disk.StableID {

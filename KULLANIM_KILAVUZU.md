@@ -1,6 +1,6 @@
 # IMAJER Kullanım Kılavuzu
 
-Bu kılavuz `imajer 0.6.3` geliştirme sürümünün kurulmasını, vaka
+Bu kılavuz `imajer 0.6.4` geliştirme sürümünün kurulmasını, vaka
 yapılandırmasını, uzak hedefin keşfedilmesini, RAM/disk edinimini, kesinti
 sonrası devam etmeyi ve kanıt paketini doğrulamayı anlatır.
 
@@ -138,14 +138,14 @@ Yerel build:
 ```sh
 make test
 make vet
-make build VERSION=0.6.3
+make build VERSION=0.6.4
 ```
 
 Tüm hedefler:
 
 ```sh
-make reproducible VERSION=0.6.3
-make cross VERSION=0.6.3
+make reproducible VERSION=0.6.4
+make cross VERSION=0.6.4
 ```
 
 Derlemelerde CGO kapalıdır. Ürünler `dist/` altına yazılır.
@@ -189,6 +189,12 @@ Uzak SSH veya WinRM ediniminde controller'ın yükleyeceği agent, imzalı tool
 manifestinde bulunmalıdır. AVML, LiME veya harici adapter yüklenecekse bunlar da
 aynı kurala tabidir.
 
+Resmî masaüstü paketlerinde Microsoft AVML `0.20.0` minimal binary'leri Linux
+`amd64` ve `arm64` için hazır gelir. Paketleme sırasında resmî release SHA-256
+değerleri doğrulanır, ardından AVML uygulamanın Ed25519 imzalı tool manifestine
+eklenir. Linux hedef tarandıktan sonra uygun AVML dosyası arayüz tarafından
+otomatik seçilir; edinim sırasında internet bağlantısı gerekmez.
+
 ### 5.1. Bundle dizini oluşturma
 
 Örnek Linux x64 paketi:
@@ -204,7 +210,7 @@ tool-bundle/
 
 ```yaml
 - name: imajer-agent
-  version: "0.6.3"
+  version: "0.6.4"
   os: linux
   arch: amd64
   path: ./imajer-agent-linux-amd64

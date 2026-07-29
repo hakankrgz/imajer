@@ -84,8 +84,8 @@
               <div><h2>Vaka bilgileri</h2><p>Rapor üzerinde görünecek temel bilgiler.</p></div>
             </div>
             <div class="grid two">
-              <div class="field"><label>Vaka ID</label><input name="case_id" required value="CASE-2026-001" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
-              <div class="field"><label>Delil ID</label><input name="evidence_id" required value="EVID-001" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+              <div class="field"><label>Vaka ID</label><input name="case_id" required placeholder="Otomatik oluşturulur" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+              <div class="field"><label>Delil ID</label><input name="evidence_id" required placeholder="EVID-001" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
               <div class="field"><label>İncelemeci</label><input name="examiner" required placeholder="Ad Soyad" autocorrect="off" spellcheck="false"></div>
               <div class="field"><label>Kurum</label><input name="organization" placeholder="Kurum adı" autocorrect="off" spellcheck="false"></div>
               <div class="field wide"><label>Yetki / olay numarası</label><input name="authority_ref" required placeholder="IR-2026-42" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
@@ -180,7 +180,7 @@
               </details>
             </div>
             <div class="ram-fields hidden">
-              <p class="auto-note">RAM yöntemi hedef işletim sistemi ve mimarisine göre otomatik seçilir.</p>
+              <p class="auto-note" id="ramToolStatus">RAM yöntemi hedef işletim sistemi ve mimarisine göre otomatik seçilir.</p>
               <details class="advanced">
                 <summary>Uzman RAM ayarları</summary>
                 <div class="grid two">

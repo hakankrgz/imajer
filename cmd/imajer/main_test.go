@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -119,6 +120,23 @@ func TestUIFinishOperationAddsReadableSummary(t *testing.T) {
 	}
 }
 
+func TestUIFinishOperationSurfacesCommandError(t *testing.T) {
+	server := &uiServer{status: uiStatus{
+		Running: true, Action: "acquire", StartedAt: time.Now().UTC(),
+		Logs: []string{
+			"$ imajer acquire --job test.yaml",
+			"imajer: RAM edinimi başlatılamadı: imzalı AVML aracı seçilmedi",
+		},
+	}}
+	server.finishOperation(&exec.ExitError{})
+	if !strings.Contains(server.status.Message, "imzalı AVML aracı seçilmedi") {
+		t.Fatalf("command error was hidden: %q", server.status.Message)
+	}
+	if strings.Contains(server.status.Message, "exit status") {
+		t.Fatalf("generic exit status leaked into user-facing message: %q", server.status.Message)
+	}
+}
+
 func TestUIRedaction(t *testing.T) {
 	input := "password=hunter2 Authorization=BasicSecret Bearer ey.secret.token"
 	got := redactUI(input)
@@ -191,6 +209,33 @@ func TestUISavesLocalFileWithAutomaticDiskMetadata(t *testing.T) {
 		job.Acquisition.Disk.SectorSize != 512 ||
 		job.Acquisition.Disk.Model != "Yerel test dosyası" {
 		t.Fatalf("automatic metadata is incorrect: %#v", job.Acquisition.Disk)
+	}
+}
+
+func TestUISaveRejectsCaseContainingArtifacts(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "source.raw")
+	if err := os.WriteFile(sourcePath, []byte("source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outputDir := filepath.Join(root, "evidence")
+	artifactDir := filepath.Join(outputDir, "CASE-USED", "EVID-USED", "artifacts", "disk")
+	if err := os.MkdirAll(artifactDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(artifactDir, "state.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := &uiServer{workingDir: root}
+	_, _, err := server.saveJob(uiJobForm{
+		CaseID: "CASE-USED", EvidenceID: "EVID-USED", Examiner: "Examiner",
+		AuthorityRef: "AUTH", Authorized: true, Transport: "local", Profile: "disk",
+		DiskPath: sourcePath, OutputDirectory: outputDir,
+		SigningKey: filepath.Join(root, "keys", "examiner.pem"),
+		AgentLocal: filepath.Join(root, "imajer-agent"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "daha önce kullanılmış") {
+		t.Fatalf("expected used-case rejection, got %v", err)
 	}
 }
 

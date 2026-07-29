@@ -220,7 +220,7 @@ func (t *sshTransport) HashFile(ctx context.Context, path string) (string, error
 
 func (t *sshTransport) Remove(_ context.Context, path string) error {
 	err := t.sftp.Remove(path)
-	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "no such file") {
+	if err != nil && !isSFTPNotExist(err) {
 		return err
 	}
 	dir := remoteDir(path, "/")
@@ -228,6 +228,18 @@ func (t *sshTransport) Remove(_ context.Context, path string) error {
 		_ = t.sftp.RemoveDirectory(dir)
 	}
 	return nil
+}
+
+func isSFTPNotExist(err error) bool {
+	if errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	var status *sftp.StatusError
+	if errors.As(err, &status) && status.FxCode() == sftp.ErrSSHFxNoSuchFile {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "no such file") || strings.Contains(message, "file does not exist")
 }
 
 func quotePOSIX(argv []string) (string, error) {

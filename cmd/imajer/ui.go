@@ -256,6 +256,15 @@ func (s *uiServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"windows_amd64": filepath.Join(agentsDir, "imajer-agent-windows-amd64.exe"),
 		"windows_arm64": filepath.Join(agentsDir, "imajer-agent-windows-arm64.exe"),
 	}
+	ramTools := map[string]string{
+		"linux_amd64": filepath.Join(agentsDir, "avml-linux-amd64"),
+		"linux_arm64": filepath.Join(agentsDir, "avml-linux-arm64"),
+	}
+	for selector, path := range ramTools {
+		if !regularFileExists(path) {
+			delete(ramTools, selector)
+		}
+	}
 	localAgent := filepath.Join(s.workingDir, "dist", "imajer-agent")
 	if s.packaged {
 		localName := "imajer-agent-" + runtime.GOOS + "-" + runtime.GOARCH
@@ -303,8 +312,11 @@ func (s *uiServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"default_public_key":  s.defaultPublicKey,
 		"default_known_hosts": s.defaultKnownHosts,
 		"default_private_key": defaultPrivateKey,
+		"default_case_id":     "CASE-" + time.Now().Format("20060102-150405"),
+		"default_evidence_id": "EVID-001",
 		"tool_manifest":       toolManifest,
 		"trust_public_key":    trustPublicKey,
+		"ram_tools":           ramTools,
 		"demo_available":      demoAvailable,
 		"demo_job":            demoJob,
 		"demo_case_dir":       demoCase,
@@ -537,6 +549,17 @@ func (s *uiServer) saveJob(form uiJobForm) (string, string, error) {
 		return "", "", err
 	}
 	jobsDir := filepath.Join(job.Output.Directory, ".imajer-ui", "jobs")
+	caseDir := filepath.Join(job.Output.Directory, job.Case.ID, job.Case.EvidenceID)
+	hasArtifacts, err := caseHasArtifacts(caseDir)
+	if err != nil {
+		return "", "", fmt.Errorf("mevcut vaka dizinini denetle: %w", err)
+	}
+	if hasArtifacts {
+		return "", "", errors.New(
+			"bu vaka/delil kimliği daha önce kullanılmış ve kanıt artifact'ları içeriyor; " +
+				"mevcut işi 'Devam et' ile sürdürün veya yeni bir vaka/delil kimliği girin",
+		)
+	}
 	if err := os.MkdirAll(jobsDir, 0o700); err != nil {
 		return "", "", fmt.Errorf("job dizini oluştur: %w", err)
 	}
@@ -544,8 +567,18 @@ func (s *uiServer) saveJob(form uiJobForm) (string, string, error) {
 	if err := evidence.AtomicWrite(jobPath, raw, 0o600); err != nil {
 		return "", "", fmt.Errorf("job kaydet: %w", err)
 	}
-	caseDir := filepath.Join(job.Output.Directory, job.Case.ID, job.Case.EvidenceID)
 	return jobPath, caseDir, nil
+}
+
+func caseHasArtifacts(caseDir string) (bool, error) {
+	entries, err := os.ReadDir(filepath.Join(caseDir, "artifacts"))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return len(entries) > 0, nil
 }
 
 func (s *uiServer) startOperation(action string, args []string, jobPath, caseDir, password string) error {
@@ -700,7 +733,7 @@ func (s *uiServer) finishOperation(err error) {
 		s.status.Message = "İşlem iptal edildi"
 		s.status.Logs = append(s.status.Logs, "SONUÇ: İŞLEM İPTAL EDİLDİ")
 	} else {
-		s.status.Message = "İşlem başarısız: " + redactUI(err.Error())
+		s.status.Message = "İşlem başarısız: " + commandFailureDetail(err, s.status.Logs)
 		s.status.Logs = append(s.status.Logs, "SONUÇ: İŞLEM TAMAMLANAMADI", s.status.Message)
 	}
 	duration := s.status.FinishedAt.Sub(s.status.StartedAt).Round(time.Second)
@@ -713,6 +746,19 @@ func (s *uiServer) finishOperation(err error) {
 		s.status.Logs = append(s.status.Logs, "Bütünlük özeti okunamadı: "+redactUI(integrityErr.Error()))
 	}
 	s.cancel = nil
+}
+
+func commandFailureDetail(err error, logs []string) string {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		for i := len(logs) - 1; i >= 0; i-- {
+			line := strings.TrimSpace(logs[i])
+			if strings.HasPrefix(line, "imajer: ") {
+				return redactUI(strings.TrimPrefix(line, "imajer: "))
+			}
+		}
+	}
+	return redactUI(err.Error())
 }
 
 func (s *uiServer) requireToken(next http.HandlerFunc) http.HandlerFunc {

@@ -19,6 +19,10 @@ import (
 func openRAM(ctx context.Context, provider, path, toolPath string) (*Handle, error) {
 	switch strings.ToLower(provider) {
 	case "", "auto", "avml":
+		if provider != "avml" && toolPath != "" &&
+			strings.HasSuffix(strings.ToLower(toolPath), ".ko") {
+			return openLiME(ctx, toolPath)
+		}
 		tool := toolPath
 		if tool == "" {
 			tool = "avml"
@@ -29,9 +33,6 @@ func openRAM(ctx context.Context, provider, path, toolPath string) (*Handle, err
 		}
 		if provider == "avml" {
 			return nil, fmt.Errorf("AVML not found: %w", err)
-		}
-		if toolPath != "" && strings.HasSuffix(strings.ToLower(toolPath), ".ko") {
-			return openLiME(ctx, toolPath)
 		}
 		return nil, errors.New("no usable RAM provider: install signed AVML or specify a LiME module")
 	case "lime":

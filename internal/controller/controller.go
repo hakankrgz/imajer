@@ -281,9 +281,45 @@ func (c *Controller) Prepare(ctx context.Context) error {
 	if err := c.prepareSourceTool(ctx, &c.Job.Acquisition.Disk); err != nil {
 		return err
 	}
+	if err := c.validateRAMProvider(); err != nil {
+		return err
+	}
 	raw, _ := json.MarshalIndent(info, "", "  ")
 	if err := evidence.AtomicWrite(filepath.Join(c.CaseDir, "target-probe.json"), append(raw, '\n'), 0o600); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (c *Controller) validateRAMProvider() error {
+	profile := strings.ToLower(strings.TrimSpace(c.Job.Acquisition.Profile))
+	if profile != "ram" && profile != "both" {
+		return nil
+	}
+	if !strings.EqualFold(c.Probe.OS, "linux") {
+		return nil
+	}
+	src := c.Job.Acquisition.RAM
+	provider := strings.ToLower(strings.TrimSpace(src.Provider))
+	switch provider {
+	case "", "auto", "avml":
+		if src.ToolPath != "" {
+			return nil
+		}
+		if _, ok := c.Probe.Tools["avml"]; ok {
+			return nil
+		}
+		return errors.New(
+			"RAM edinimi başlatılamadı: hedefte AVML yok ve hedef mimarisine uygun " +
+				"imzalı AVML aracı seçilmedi",
+		)
+	case "lime":
+		if src.ToolPath == "" {
+			return errors.New(
+				"RAM edinimi başlatılamadı: LiME için hedef çekirdekle birebir uyumlu " +
+					"imzalı .ko modülü seçilmedi",
+			)
+		}
 	}
 	return nil
 }
@@ -1120,7 +1156,9 @@ func (c *Controller) installRemoteMarker(ctx context.Context) error {
 	c.markerPath, c.markerHash = remote, hash
 	c.markerPaths = appendUnique(c.markerPaths, remote)
 	if old != "" && old != remote {
-		_ = c.Transport.Remove(ctx, old)
+		if err := c.Transport.Remove(ctx, old); err == nil {
+			c.markerPaths = removeValue(c.markerPaths, old)
+		}
 	}
 	return nil
 }
@@ -1239,6 +1277,15 @@ func appendUnique(values []string, value string) []string {
 		}
 	}
 	return append(values, value)
+}
+
+func removeValue(values []string, value string) []string {
+	for i, candidate := range values {
+		if candidate == value {
+			return append(values[:i], values[i+1:]...)
+		}
+	}
+	return values
 }
 
 func readFrameWithTimeout(decoder *protocol.Decoder, timeout time.Duration) (*protocol.Frame, error) {
