@@ -237,6 +237,13 @@ button, input, select { font: inherit; }
 
 .field label b { color: var(--muted); font-weight: normal; }
 .field small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.required-note {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+}
+.required-note span, .required-mark { color: #b42318; font-weight: bold; }
 
 input, select {
   width: 100%;

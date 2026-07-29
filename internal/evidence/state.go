@@ -140,23 +140,6 @@ func AtomicWrite(path string, data []byte, mode os.FileMode) error {
 	return syncDir(dir)
 }
 
-func syncDir(dir string) error {
-	f, err := os.Open(dir)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	if err := f.Sync(); err != nil {
-		// Windows does not support syncing directory handles.
-		if strings.Contains(strings.ToLower(err.Error()), "incorrect function") ||
-			strings.Contains(strings.ToLower(err.Error()), "invalid argument") {
-			return nil
-		}
-		return err
-	}
-	return nil
-}
-
 type ChunkLog struct {
 	f *os.File
 	w *bufio.Writer

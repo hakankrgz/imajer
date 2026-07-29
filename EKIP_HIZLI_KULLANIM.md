@@ -1,4 +1,4 @@
-# IMAJER 0.6.6 — Proje Özeti ve Ekip Hızlı Kullanım
+# IMAJER 0.6.8 — Proje Özeti ve Ekip Hızlı Kullanım
 
 Bu belge, IMAJER ile disk veya RAM imajı alacak ekip üyeleri için kısa kullanım
 özetidir.

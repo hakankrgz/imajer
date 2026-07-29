@@ -9,10 +9,11 @@ import (
 	"time"
 )
 
-type browsePathFunc func(context.Context, string) (path string, canceled bool, err error)
+type browsePathFunc func(context.Context, string, string) (path string, canceled bool, err error)
 
 type uiBrowseRequest struct {
-	Kind string `json:"kind"`
+	Kind        string `json:"kind"`
+	CurrentPath string `json:"current_path"`
 }
 
 func (s *uiServer) handleBrowse(w http.ResponseWriter, r *http.Request) {
@@ -40,13 +41,14 @@ func (s *uiServer) handleBrowse(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Seçim türü file veya directory olmalıdır"})
 		return
 	}
+	request.CurrentPath = strings.TrimSpace(request.CurrentPath)
 	if s.browsePath == nil {
 		writeJSON(w, http.StatusNotImplemented, map[string]string{"error": "Bu sistemde yerel dosya seçici kullanılamıyor"})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 9*time.Minute)
 	defer cancel()
-	path, canceled, err := s.browsePath(ctx, request.Kind)
+	path, canceled, err := s.browsePath(ctx, request.Kind, request.CurrentPath)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			writeJSON(w, http.StatusRequestTimeout, map[string]string{"error": "Dosya seçimi zaman aşımına uğradı"})

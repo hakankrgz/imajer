@@ -50,8 +50,8 @@ Go 1.26.5 gereklidir.
 make test
 make vet
 make reproducible
-make cross VERSION=0.6.6
-make desktop-packages VERSION=0.6.6
+make cross VERSION=0.6.8
+make desktop-packages VERSION=0.6.8
 ```
 
 Üretilen controller hedefleri:
@@ -107,7 +107,7 @@ artifact'e eklemez.
 Kaynak koddan yerel demo hazırlamak için:
 
 ```sh
-make demo VERSION=0.6.6
+make demo VERSION=0.6.8
 ```
 
 ## Anahtarlar ve imzalı araç paketi

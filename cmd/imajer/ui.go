@@ -859,13 +859,29 @@ func (s *uiServer) launchDesktopWindow(url string) {
 		}
 		return
 	}
-	if err := command.Wait(); err != nil {
-		s.appendLog("Masaüstü penceresi kapandı: " + err.Error())
+	startedAt := time.Now()
+	waitErr := command.Wait()
+	if !desktopWindowExitShouldShutdown(time.Since(startedAt)) {
+		// Edge can hand an app-mode window to another process immediately,
+		// especially when the controller is elevated. The window remains alive,
+		// so the localhost service must remain alive as well.
+		if waitErr != nil {
+			s.appendLog("Masaüstü pencere başlatıcısı süreci devretti: " + waitErr.Error())
+		}
+		return
+	}
+	if waitErr != nil {
+		s.appendLog("Masaüstü penceresi kapandı: " + waitErr.Error())
 	}
 	select {
 	case s.shutdown <- struct{}{}:
 	default:
 	}
+}
+
+func desktopWindowExitShouldShutdown(lifetime time.Duration) bool {
+	const processHandoffWindow = 3 * time.Second
+	return lifetime >= processHandoffWindow
 }
 
 func openDesktopWindow(url, workingDir string) (*exec.Cmd, error) {

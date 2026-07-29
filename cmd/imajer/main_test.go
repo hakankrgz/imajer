@@ -365,15 +365,22 @@ func TestUILoadIntegrityDistinguishesContinuousAndComposite(t *testing.T) {
 func TestUIBrowseHandlerUsesNativePickerResult(t *testing.T) {
 	server := &uiServer{
 		token: "token",
-		browsePath: func(_ context.Context, kind string) (string, bool, error) {
+		browsePath: func(_ context.Context, kind, currentPath string) (string, bool, error) {
 			if kind != "directory" {
 				t.Fatalf("unexpected kind %q", kind)
+			}
+			if currentPath != "/evidence/previous" {
+				t.Fatalf("unexpected current path %q", currentPath)
 			}
 			return "/evidence/case", false, nil
 		},
 	}
 	handler := server.requireToken(server.handleBrowse)
-	request := httptest.NewRequest(http.MethodPost, "/api/browse", strings.NewReader(`{"kind":"directory"}`))
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/browse",
+		strings.NewReader(`{"kind":"directory","current_path":"/evidence/previous"}`),
+	)
 	request.Header.Set("X-Imajer-Token", "token")
 	response := httptest.NewRecorder()
 	handler(response, request)
@@ -687,6 +694,15 @@ func TestFindEdgeExecutableFromPath(t *testing.T) {
 	}
 	if got != edgePath {
 		t.Fatalf("got %q want %q", got, edgePath)
+	}
+}
+
+func TestDesktopWindowQuickProcessHandoffKeepsServerAlive(t *testing.T) {
+	if desktopWindowExitShouldShutdown(500 * time.Millisecond) {
+		t.Fatal("quick Edge process handoff would shut down the UI server")
+	}
+	if !desktopWindowExitShouldShutdown(10 * time.Second) {
+		t.Fatal("closing a long-running Edge window would leave the UI server running")
 	}
 }
 

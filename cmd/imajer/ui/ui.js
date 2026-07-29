@@ -34,6 +34,20 @@ function switchTab(name) {
   $$(".panel").forEach(item => item.classList.toggle("active", item.id === `panel-${name}`));
 }
 
+function refreshRequiredMarkers() {
+  $$(".required-mark").forEach(mark => mark.remove());
+  $$("#newJobForm [required]").forEach(control => {
+    const field = control.closest(".field");
+    const label = field ? $(":scope > label", field) : control.closest("label");
+    if (!label) return;
+    const mark = document.createElement("span");
+    mark.className = "required-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.textContent = " *";
+    label.append(mark);
+  });
+}
+
 function updateConditionalFields() {
   const transport = $('input[name="transport"]:checked')?.value || "local";
   const profile = $('input[name="profile"]:checked')?.value || "disk";
@@ -47,6 +61,9 @@ function updateConditionalFields() {
   $$(".local-disk-picker").forEach(el => el.classList.toggle("hidden", transport !== "local"));
   $("#diskSelect").required = false;
   $("#localSourcePath").required = transport === "local" && needsDisk;
+  $('[name="host"]').required = transport !== "local";
+  $('[name="user"]').required = transport !== "local";
+  $('[name="known_hosts"]').required = transport === "ssh";
   const port = $('[name="port"]');
   if (transport === "ssh" && (!port.value || port.value === "5986")) port.value = "22";
   if (transport === "winrm" && (!port.value || port.value === "22")) port.value = "5986";
@@ -61,6 +78,7 @@ function updateConditionalFields() {
     lastTransport = transport;
   }
   configureRAMTool();
+  refreshRequiredMarkers();
 }
 
 function clearInventory() {
@@ -609,7 +627,10 @@ async function browseForPath(button) {
   try {
     const result = await api("/api/browse", {
       method: "POST",
-      body: JSON.stringify({ kind: button.dataset.browseKind || "file" })
+      body: JSON.stringify({
+        kind: button.dataset.browseKind || "file",
+        current_path: target.value.trim()
+      })
     });
     if (result.canceled) return;
     if (!result.path) throw new Error("Seçilen yol okunamadı");

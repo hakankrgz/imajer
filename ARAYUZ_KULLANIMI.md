@@ -1,4 +1,4 @@
-# IMAJER 0.6.6 Basit Arayüz Kullanımı
+# IMAJER 0.6.8 Basit Arayüz Kullanımı
 
 ## macOS
 

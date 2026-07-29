@@ -1,4 +1,4 @@
-# IMAJER 0.6.6 Masaüstü Kullanımı
+# IMAJER 0.6.8 Masaüstü Kullanımı
 
 IMAJER masaüstü paketi Terminal veya YAML kullanmadan, çift tıklayarak
 çalıştırılabilir. Safari, Chrome veya normal bir tarayıcı sekmesi açılmaz.

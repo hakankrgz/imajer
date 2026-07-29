@@ -2,7 +2,7 @@
 
 Tarih: 2026-07-29
 Revizyon: 10 — taşınabilir masaüstü paketleri ve okunabilir PDF raporu
-Doğrulanan geliştirme sürümü: `0.6.6`
+Doğrulanan geliştirme sürümü: `0.6.8`
 
 ## 1. Güncel sonuç
 

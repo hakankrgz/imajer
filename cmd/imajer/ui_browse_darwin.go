@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func browseNativePath(ctx context.Context, kind string) (string, bool, error) {
+func browseNativePath(ctx context.Context, kind, _ string) (string, bool, error) {
 	script := `POSIX path of (choose file with prompt "Bir dosya seçin")`
 	if kind == "directory" {
 		script = `POSIX path of (choose folder with prompt "Bir klasör seçin")`

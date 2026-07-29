@@ -160,7 +160,7 @@ const generated = new Intl.DateTimeFormat("tr-TR", {
   dateStyle: "long",
   timeZone: "Europe/Istanbul",
 }).format(new Date());
-const title = "IMAJER 0.6.6 — Proje Özeti ve Ekip Hızlı Kullanım";
+const title = "IMAJER 0.6.8 — Proje Özeti ve Ekip Hızlı Kullanım";
 const html = `<!doctype html>
 <html lang="tr">
 <head>
@@ -198,7 +198,7 @@ const html = `<!doctype html>
 </head>
 <body>
 ${content}
-<div class="footer">IMAJER 0.6.6 · Güncelleme: ${escapeHTML(generated)} · Kaynak: ${escapeHTML(basename(input))}</div>
+<div class="footer">IMAJER 0.6.8 · Güncelleme: ${escapeHTML(generated)} · Kaynak: ${escapeHTML(basename(input))}</div>
 </body>
 </html>`;
 

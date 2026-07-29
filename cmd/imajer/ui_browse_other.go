@@ -7,6 +7,6 @@ import (
 	"errors"
 )
 
-func browseNativePath(context.Context, string) (string, bool, error) {
+func browseNativePath(context.Context, string, string) (string, bool, error) {
 	return "", false, errors.New("yerel dosya seçici yalnız macOS ve Windows masaüstünde destekleniyor")
 }
