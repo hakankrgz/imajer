@@ -2,7 +2,7 @@
 
 Tarih: 2026-07-29
 Revizyon: 9 — kanıt yolu sertleştirmesi, güvenli doğrulama sırası ve kontrollü iptal
-Doğrulanan geliştirme sürümü: `0.6.2`
+Doğrulanan geliştirme sürümü: `0.6.3`
 
 ## 1. Güncel sonuç
 
@@ -72,7 +72,7 @@ bağlı bölüm uyarısı ve ARM64 RAM/LiME sınırlaması eklenmiştir. `/dev/s
 `noexec` ise agent hash doğrulamasından sonra gerçek çalıştırma testi başarısız
 olur, dosya temizlenir ve `/tmp` adayına geçilir.
 
-Bu revizyonda yeni bir artifact için boş olmayan kanıt dizinine yazma
+`0.6.3` ile yeni bir artifact için boş olmayan kanıt dizinine yazma
 reddedilerek eski RAW segmentlerinin yeni edinime karışması engellenmiştir.
 Kanıt segmentleri ve rapora girecek dosyalar symlink/özel dosya ise reddedilir.
 `verify`, yerel yol ve boyutları etkileyen state alanlarını okumadan önce imzalı

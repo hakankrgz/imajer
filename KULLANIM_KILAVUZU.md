@@ -1,6 +1,6 @@
 # IMAJER Kullanım Kılavuzu
 
-Bu kılavuz `imajer 0.6.2` geliştirme sürümünün kurulmasını, vaka
+Bu kılavuz `imajer 0.6.3` geliştirme sürümünün kurulmasını, vaka
 yapılandırmasını, uzak hedefin keşfedilmesini, RAM/disk edinimini, kesinti
 sonrası devam etmeyi ve kanıt paketini doğrulamayı anlatır.
 
@@ -135,14 +135,14 @@ Yerel build:
 ```sh
 make test
 make vet
-make build VERSION=0.6.2
+make build VERSION=0.6.3
 ```
 
 Tüm hedefler:
 
 ```sh
-make reproducible VERSION=0.6.2
-make cross VERSION=0.6.2
+make reproducible VERSION=0.6.3
+make cross VERSION=0.6.3
 ```
 
 Derlemelerde CGO kapalıdır. Ürünler `dist/` altına yazılır.
@@ -201,7 +201,7 @@ tool-bundle/
 
 ```yaml
 - name: imajer-agent
-  version: "0.6.2"
+  version: "0.6.3"
   os: linux
   arch: amd64
   path: ./imajer-agent-linux-amd64
