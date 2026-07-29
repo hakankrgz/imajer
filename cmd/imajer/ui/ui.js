@@ -496,6 +496,10 @@ function renderResult(status) {
 async function pollStatus() {
   try {
     const status = await api("/api/status");
+    for (const field of ["started_at", "finished_at"]) {
+      const value = status[field];
+      if (value && new Date(value).getUTCFullYear() <= 1) status[field] = "";
+    }
     $("#statusTitle").textContent = status.message || "Hazır";
     $("#statusAction").textContent = formatAction(status.action);
     $("#statusStarted").textContent = status.started_at ? new Date(status.started_at).toLocaleString("tr-TR") : "—";

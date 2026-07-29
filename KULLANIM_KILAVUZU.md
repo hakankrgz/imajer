@@ -106,9 +106,12 @@ disk** profilini seçin.
 | `imajer-darwin-amd64` | Intel macOS controller |
 | `imajer-windows-amd64.exe` | Windows x64 controller |
 | `imajer-windows-arm64.exe` | Windows ARM64 controller |
+| `imajer-agent-darwin-amd64` | Intel macOS yerel edinim yardımcısı |
+| `imajer-agent-darwin-arm64` | Apple Silicon yerel edinim yardımcısı |
 | `imajer-agent-linux-amd64` | Linux x64 hedef |
 | `imajer-agent-linux-arm64` | Linux ARM64 hedef |
 | `imajer-agent-windows-amd64.exe` | Windows Server x64 hedef |
+| `imajer-agent-windows-arm64.exe` | Windows ARM64 yerel edinim yardımcısı |
 
 Mevcut macOS mimarisine uygun binary'yi kolay kullanım için kopyalamak veya
 yeniden adlandırmak mümkündür. Hazır dosyaların bütünlüğü:

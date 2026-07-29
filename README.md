@@ -16,6 +16,11 @@ Adım adım kurulum, job örnekleri, SSH/WinRM kullanımı, resume, verify ve
 troubleshooting için [`KULLANIM_KILAVUZU.md`](KULLANIM_KILAVUZU.md) dosyasına
 bakın.
 
+Ekip arkadaşları için ekran görüntülü kısa anlatım:
+[`EKIP_HIZLI_KULLANIM.md`](EKIP_HIZLI_KULLANIM.md).
+Paylaşılabilir PDF sürümü:
+[`EKIP_HIZLI_KULLANIM.pdf`](EKIP_HIZLI_KULLANIM.pdf).
+
 > Bu araç yalnız açık yasal yetkiyle kullanılmalıdır. Canlı edinim hedef
 > belleğini, işletim sistemi loglarını ve filesystem metadata'sını değiştirir.
 > “Zero disk footprint” yalnız hedefte RAM/disk imajı veya staging parçası
@@ -49,8 +54,13 @@ make desktop-packages VERSION=0.6.3
 
 Agent hedefleri:
 
+- `darwin/amd64`, `darwin/arm64`
 - `linux/amd64`, `linux/arm64`
-- `windows/amd64`
+- `windows/amd64`, `windows/arm64`
+
+Darwin agent'ları ve Windows ARM64 agent'ı aynı makinedeki yerel edinimlerde
+kullanılır. Uzak hedef desteği Linux amd64/arm64 ve Windows amd64 ile
+sınırlıdır.
 
 CGO kullanılmaz.
 
