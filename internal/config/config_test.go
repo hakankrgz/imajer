@@ -92,3 +92,35 @@ output:
 		t.Fatalf("flag-equivalent overrides should complete the job: %v", err)
 	}
 }
+
+func TestRejectInvalidRetryBounds(t *testing.T) {
+	base := Job{
+		Case:   Case{ID: "CASE", EvidenceID: "EVID", Examiner: "x", AuthorityRef: "a", Authorized: true},
+		Target: Target{Transport: "local"},
+		Acquisition: Acquisition{
+			Profile: "disk", ChunkSize: DefaultChunkSize, SegmentSize: DefaultSegmentSize,
+			Disk: Source{Path: "/dev/fake", ID: "serial", Size: 1 << 20},
+		},
+		Output: Output{Directory: t.TempDir()},
+		Retry: Retry{
+			MaxAttempts: 3, Connect: 30 * time.Second, Chunk: time.Minute, Cleanup: time.Minute,
+		},
+	}
+	tests := []struct {
+		name   string
+		mutate func(*Job)
+	}{
+		{"negative attempts", func(job *Job) { job.Retry.MaxAttempts = -1 }},
+		{"zero connect timeout", func(job *Job) { job.Retry.Connect = 0 }},
+		{"negative chunk timeout", func(job *Job) { job.Retry.Chunk = -time.Second }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			job := base
+			test.mutate(&job)
+			if err := job.Validate(); err == nil {
+				t.Fatal("invalid retry configuration was accepted")
+			}
+		})
+	}
+}

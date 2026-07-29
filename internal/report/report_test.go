@@ -56,3 +56,33 @@ func TestIndexSignAndVerify(t *testing.T) {
 		t.Fatal("unsigned extra file was not detected")
 	}
 }
+
+func TestFinalizeIndexRejectsSymlink(t *testing.T) {
+	root := t.TempDir()
+	caseDir := filepath.Join(root, "case")
+	if err := os.Mkdir(caseDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, "outside")
+	if err := os.WriteFile(target, []byte("outside evidence tree"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(caseDir, "linked-evidence")); err != nil {
+		t.Skipf("symlink creation is unavailable: %v", err)
+	}
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyPath := filepath.Join(root, "key.pem")
+	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: raw}), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := FinalizeIndex(caseDir, "CASE", "EVID", keyPath); err == nil {
+		t.Fatal("symlink in evidence tree was accepted")
+	}
+}

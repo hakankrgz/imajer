@@ -268,6 +268,15 @@ func (j *Job) Validate() error {
 	if j.Acquisition.SegmentSize%j.Acquisition.ChunkSize != 0 {
 		errs = append(errs, errors.New("segment_size must be an exact multiple of chunk_size"))
 	}
+	if j.Retry.MaxAttempts < 1 || j.Retry.MaxAttempts > 100 {
+		errs = append(errs, errors.New("max_attempts must be between 1 and 100"))
+	}
+	if j.Retry.Connect < time.Second || j.Retry.Connect > 10*time.Minute {
+		errs = append(errs, errors.New("connect_timeout must be between 1s and 10m"))
+	}
+	if j.Retry.Chunk < time.Second || j.Retry.Chunk > 24*time.Hour {
+		errs = append(errs, errors.New("chunk_timeout must be between 1s and 24h"))
+	}
 	if j.Retry.Cleanup < time.Second || j.Retry.Cleanup > 30*time.Minute {
 		errs = append(errs, errors.New("cleanup_timeout must be between 1s and 30m"))
 	}

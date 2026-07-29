@@ -986,6 +986,13 @@ func (c *Controller) loadOrCreateState(dir, artifactID, kind string, src config.
 	if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) != 0 {
+		return nil, errors.New("new artifact directory is not empty; refusing to mix prior evidence")
+	}
 	s = &evidence.State{
 		Version: 1, CaseID: c.Job.Case.ID, EvidenceID: c.Job.Case.EvidenceID,
 		ArtifactID: artifactID, Kind: kind, SourceID: src.ID, SourcePath: src.Path,

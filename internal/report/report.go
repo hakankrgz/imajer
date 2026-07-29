@@ -222,6 +222,13 @@ func hashTree(root string) ([]evidence.FileHash, error) {
 		if d.IsDir() {
 			return nil
 		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("evidence tree contains a non-regular file: %s", path)
+		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err

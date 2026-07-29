@@ -20,8 +20,9 @@ import (
 )
 
 type sshTransport struct {
-	client *ssh.Client
-	sftp   *sftp.Client
+	client    *ssh.Client
+	sftp      *sftp.Client
+	agentConn net.Conn
 }
 
 func newSSH(ctx context.Context, target config.Target, connectTimeout time.Duration) (Transport, error) {
@@ -87,15 +88,23 @@ func newSSH(ctx context.Context, target config.Target, connectTimeout time.Durat
 	sf, err := sftp.NewClient(client)
 	if err != nil {
 		client.Close()
+		if agentConn != nil {
+			agentConn.Close()
+		}
 		return nil, err
 	}
-	return &sshTransport{client: client, sftp: sf}, nil
+	return &sshTransport{client: client, sftp: sf, agentConn: agentConn}, nil
 }
 
 func (t *sshTransport) Name() string { return "ssh" }
 
 func (t *sshTransport) Close() error {
-	return errors.Join(t.sftp.Close(), t.client.Close())
+	var agentErr error
+	if t.agentConn != nil {
+		agentErr = t.agentConn.Close()
+		t.agentConn = nil
+	}
+	return errors.Join(t.sftp.Close(), t.client.Close(), agentErr)
 }
 
 func (t *sshTransport) Start(ctx context.Context, argv []string) (*Session, error) {

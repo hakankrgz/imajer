@@ -46,6 +46,39 @@ func TestSegmentedWriterAndVerify(t *testing.T) {
 	}
 }
 
+func TestHashLogicalRejectsInvalidSegmentSize(t *testing.T) {
+	if _, _, err := HashLogical(t.TempDir(), "disk", 0, 1); err == nil {
+		t.Fatal("zero segment size was accepted")
+	}
+}
+
+func TestSegmentedWriterRejectsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "outside")
+	if err := os.WriteFile(target, []byte("must remain unchanged"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "disk.001")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink creation is unavailable: %v", err)
+	}
+	writer, err := NewSegmentedWriter(dir, "disk", 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	if err := writer.WriteAt([]byte("forensic"), 0); err == nil {
+		t.Fatal("symlink evidence segment was accepted")
+	}
+	raw, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "must remain unchanged" {
+		t.Fatal("symlink target was modified")
+	}
+}
+
 func TestMerkleRootStable(t *testing.T) {
 	a := sha256.Sum256([]byte("a"))
 	b := sha256.Sum256([]byte("b"))

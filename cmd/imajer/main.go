@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/hakankrgz/imajer/internal/config"
 	"github.com/hakankrgz/imajer/internal/controller"
@@ -35,9 +36,12 @@ var (
 	desktopWindowMode = "false"
 )
 
+const cancellationFileEnv = "IMAJER_CANCELLATION_FILE"
+
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	watchCancellationFile(ctx, cancel, os.Getenv(cancellationFileEnv))
 	if len(os.Args) < 2 {
 		if desktopMode == "true" {
 			if err := runUI(ctx, nil); err != nil {
@@ -77,6 +81,28 @@ func main() {
 		fmt.Fprintln(os.Stderr, "imajer:", err)
 		os.Exit(1)
 	}
+}
+
+func watchCancellationFile(ctx context.Context, cancel context.CancelFunc, path string) {
+	if strings.TrimSpace(path) == "" {
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				info, err := os.Lstat(path)
+				if err == nil && info.Mode().IsRegular() {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
 }
 
 func acquire(ctx context.Context, args []string) error {
@@ -254,6 +280,11 @@ func verify(args []string) error {
 	if *caseDir == "" {
 		return errors.New("--case-dir is required")
 	}
+	// Authenticate the package before parsing state fields that influence local
+	// paths, allocation sizes or verification loops.
+	if err := report.VerifyIndex(*caseDir, *publicKey); err != nil {
+		return err
+	}
 	states, err := loadAllStates(*caseDir)
 	if err != nil {
 		return err
@@ -289,9 +320,6 @@ func verify(args []string) error {
 		} else {
 			failed = append(failed, state.ArtifactID+"="+string(state.Status))
 		}
-	}
-	if err := report.VerifyIndex(*caseDir, *publicKey); err != nil {
-		return err
 	}
 	fmt.Printf("PACKAGE_INTEGRITY_OK: signed evidence index valid; verified=%d partial=%d\n", verifiedCount, partialCount)
 	if len(failed) > 0 || verifiedCount == 0 {
@@ -600,9 +628,66 @@ func loadAllStates(caseDir string) ([]evidence.State, error) {
 		if err != nil {
 			return nil, err
 		}
+		if err := validateArtifactState(*s, e.Name()); err != nil {
+			return nil, fmt.Errorf("invalid artifact state in %s: %w", e.Name(), err)
+		}
 		states = append(states, *s)
 	}
 	return states, nil
+}
+
+func validateArtifactState(state evidence.State, directoryName string) error {
+	if state.ArtifactID != directoryName || !safeEvidenceComponent(state.ArtifactID) {
+		return errors.New("artifact_id must match its directory and contain no path separators")
+	}
+	if !safeEvidenceComponent(state.CaseID) || !safeEvidenceComponent(state.EvidenceID) {
+		return errors.New("case_id and evidence_id are invalid")
+	}
+	if state.Kind != "disk" && state.Kind != "ram" {
+		return fmt.Errorf("unsupported artifact kind %q", state.Kind)
+	}
+	switch state.Status {
+	case evidence.StatusRunning, evidence.StatusVerifiedContinuous,
+		evidence.StatusChunkVerifiedComposite, evidence.StatusIncomplete, evidence.StatusFailed:
+	default:
+		return fmt.Errorf("unsupported artifact status %q", state.Status)
+	}
+	if state.ChunkSize < 1<<20 || state.ChunkSize > 64<<20 {
+		return errors.New("chunk_size must be between 1 MiB and 64 MiB")
+	}
+	if state.SegmentSize < state.ChunkSize || state.SegmentSize > 4<<30 ||
+		state.SegmentSize%state.ChunkSize != 0 {
+		return errors.New("segment_size is invalid")
+	}
+	if state.NextOffset < 0 || state.SourceSize < 0 || state.ExpectedSize < 0 ||
+		state.SessionCount < 0 || state.RetryCount < 0 {
+		return errors.New("state contains a negative size or counter")
+	}
+	if state.SourceSize > 0 && state.NextOffset > state.SourceSize {
+		return errors.New("next_offset exceeds source_size")
+	}
+	if state.Status == evidence.StatusVerifiedContinuous ||
+		state.Status == evidence.StatusChunkVerifiedComposite {
+		if !validSHA256(state.LogicalSHA256) || !validSHA256(state.MerkleRoot) {
+			return errors.New("verified artifact is missing a valid logical hash or Merkle root")
+		}
+	}
+	return nil
+}
+
+func safeEvidenceComponent(value string) bool {
+	if value == "" || value == "." || value == ".." {
+		return false
+	}
+	return filepath.Base(value) == value && !strings.ContainsAny(value, `/\`+"\x00\r\n")
+}
+
+func validSHA256(value string) bool {
+	if len(value) != sha256.Size*2 {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
 }
 
 func loadAllSessions(caseDir string, states []evidence.State) (map[string][]evidence.SessionRecord, error) {

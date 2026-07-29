@@ -293,7 +293,11 @@ func (w *SegmentedWriter) file(index int64) (*os.File, error) {
 		w.current = nil
 		w.currentIdx = -1
 	}
-	f, err := os.OpenFile(w.segmentPath(index), os.O_CREATE|os.O_RDWR, 0o600)
+	path := w.segmentPath(index)
+	if err := rejectNonRegularPath(path); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -453,11 +457,17 @@ func VerifyExistingChunk(dir, base string, segmentSize, offset int64, length int
 }
 
 func HashLogical(dir, base string, segmentSize, total int64) (string, []FileHash, error) {
+	if segmentSize <= 0 {
+		return "", nil, errors.New("invalid segment size")
+	}
+	if total < 0 {
+		return "", nil, errors.New("invalid logical size")
+	}
 	h := sha256.New()
 	var files []FileHash
 	for index, remaining := int64(0), total; remaining > 0; index++ {
 		path := filepath.Join(dir, fmt.Sprintf("%s.%03d", base, index+1))
-		f, err := os.Open(path)
+		f, err := openRegularFile(path)
 		if err != nil {
 			return "", nil, err
 		}
@@ -489,6 +499,12 @@ type FileHash struct {
 }
 
 func readLogical(dir, base string, segmentSize, offset int64, out []byte) error {
+	if segmentSize <= 0 {
+		return errors.New("invalid segment size")
+	}
+	if offset < 0 {
+		return errors.New("negative logical offset")
+	}
 	for len(out) > 0 {
 		index := offset / segmentSize
 		within := offset % segmentSize
@@ -496,7 +512,7 @@ func readLogical(dir, base string, segmentSize, offset int64, out []byte) error 
 		if max := segmentSize - within; n > max {
 			n = max
 		}
-		f, err := os.Open(filepath.Join(dir, fmt.Sprintf("%s.%03d", base, index+1)))
+		f, err := openRegularFile(filepath.Join(dir, fmt.Sprintf("%s.%03d", base, index+1)))
 		if err != nil {
 			return err
 		}
@@ -515,6 +531,27 @@ func readLogical(dir, base string, segmentSize, offset int64, out []byte) error 
 		out = out[n:]
 	}
 	return nil
+}
+
+func rejectNonRegularPath(path string) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("refusing non-regular evidence path %s", path)
+	}
+	return nil
+}
+
+func openRegularFile(path string) (*os.File, error) {
+	if err := rejectNonRegularPath(path); err != nil {
+		return nil, err
+	}
+	return os.Open(path)
 }
 
 func MerkleRoot(records []ChunkRecord) (string, error) {

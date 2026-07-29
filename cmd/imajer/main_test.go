@@ -42,6 +42,50 @@ func TestDerivedRemoteMarkerPath(t *testing.T) {
 	}
 }
 
+func TestValidateArtifactStateRejectsUnsafeValues(t *testing.T) {
+	valid := evidence.State{
+		Version: 1, CaseID: "CASE", EvidenceID: "EVID", ArtifactID: "disk", Kind: "disk",
+		SourceSize: 2 << 20, ChunkSize: 1 << 20, SegmentSize: 2 << 20,
+		Status: evidence.StatusRunning,
+	}
+	if err := validateArtifactState(valid, "disk"); err != nil {
+		t.Fatalf("valid state rejected: %v", err)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*evidence.State)
+	}{
+		{"directory mismatch", func(state *evidence.State) { state.ArtifactID = "../disk" }},
+		{"zero segment size", func(state *evidence.State) { state.SegmentSize = 0 }},
+		{"offset exceeds source", func(state *evidence.State) { state.NextOffset = 3 << 20 }},
+		{"unknown status", func(state *evidence.State) { state.Status = evidence.Status("tampered") }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			state := valid
+			test.mutate(&state)
+			if err := validateArtifactState(state, "disk"); err == nil {
+				t.Fatal("unsafe state was accepted")
+			}
+		})
+	}
+}
+
+func TestWatchCancellationFile(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	path := filepath.Join(t.TempDir(), "cancel")
+	watchCancellationFile(ctx, cancel, path)
+	if err := os.WriteFile(path, []byte("cancel\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ctx.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("cancellation file was not observed")
+	}
+}
+
 func TestUISplitProgressOnCarriageReturn(t *testing.T) {
 	scanner := bufioNewScanner(strings.NewReader("first\rsecond\nthird"))
 	var got []string

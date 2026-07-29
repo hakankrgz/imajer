@@ -569,6 +569,17 @@ func (s *uiServer) runCommand(ctx context.Context, args []string, password strin
 	cmd := exec.Command(s.executable, args...)
 	cmd.Dir = s.workingDir
 	cmd.Env = os.Environ()
+	cancelPath := ""
+	if runtime.GOOS == "windows" {
+		token, err := secureToken()
+		if err != nil {
+			s.finishOperation(err)
+			return
+		}
+		cancelPath = filepath.Join(os.TempDir(), "imajer-cancel-"+token)
+		cmd.Env = append(cmd.Env, cancellationFileEnv+"="+cancelPath)
+		defer os.Remove(cancelPath)
+	}
 	if password != "" {
 		const passwordEnv = "IMAJER_UI_EPHEMERAL_PASSWORD"
 		cmd.Env = append(cmd.Env, passwordEnv+"="+password)
@@ -601,7 +612,21 @@ func (s *uiServer) runCommand(ctx context.Context, args []string, password strin
 		select {
 		case <-ctx.Done():
 			if runtime.GOOS == "windows" {
-				_ = cmd.Process.Kill()
+				if err := evidence.AtomicWrite(cancelPath, []byte("cancel\n"), 0o600); err != nil {
+					s.appendLog("Güvenli iptal sinyali yazılamadı; işlem zorla durduruluyor: " + err.Error())
+					_ = cmd.Process.Kill()
+					return
+				}
+				// The child observes the cancellation file, cancels acquisition,
+				// performs its bounded remote cleanup and finalizes the report.
+				timer := time.NewTimer(5 * time.Minute)
+				defer timer.Stop()
+				select {
+				case <-processDone:
+				case <-timer.C:
+					s.appendLog("Güvenli iptal zaman aşımına uğradı; işlem zorla durduruluyor")
+					_ = cmd.Process.Kill()
+				}
 			} else {
 				// The child handles SIGINT with signal.NotifyContext and runs
 				// its bounded cleanup path before exiting.

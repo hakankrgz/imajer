@@ -1,7 +1,7 @@
 # Plan Uygunluk ve Eksik Analizi
 
 Tarih: 2026-07-29
-Revizyon: 8 — native yol seçimi, görünür hash karşılaştırması ve Ubuntu ARM64 SSH kabul testi
+Revizyon: 9 — kanıt yolu sertleştirmesi, güvenli doğrulama sırası ve kontrollü iptal
 Doğrulanan geliştirme sürümü: `0.6.2`
 
 ## 1. Güncel sonuç
@@ -71,6 +71,22 @@ Raspberry Pi SD/eMMC hedefleri için `mmcblk` path fallback'i, CID/name kimliği
 bağlı bölüm uyarısı ve ARM64 RAM/LiME sınırlaması eklenmiştir. `/dev/shm`
 `noexec` ise agent hash doğrulamasından sonra gerçek çalıştırma testi başarısız
 olur, dosya temizlenir ve `/tmp` adayına geçilir.
+
+Bu revizyonda yeni bir artifact için boş olmayan kanıt dizinine yazma
+reddedilerek eski RAW segmentlerinin yeni edinime karışması engellenmiştir.
+Kanıt segmentleri ve rapora girecek dosyalar symlink/özel dosya ise reddedilir.
+`verify`, yerel yol ve boyutları etkileyen state alanlarını okumadan önce imzalı
+evidence index'i doğrular; ardından artifact kimliği, durum, boyut, offset ve
+hash alanlarına sınır denetimi uygular. Retry değerleri sınırlanmış, SSH agent
+socket'i tüm kapanış yollarında kapatılmış ve Windows masaüstü iptali doğrudan
+process kill yerine çocuğun cleanup/rapor akışını çalıştıran kontrollü iptal
+sinyaline geçirilmiştir.
+
+Bu sertleştirmeler birim ve regresyon testleriyle; `go test ./...`,
+`go test -race ./...`, `go vet ./...`, reproducible/cross build, protokol fuzz,
+2 TiB mantıksal Merkle benchmark'ı, `govulncheck` ve imzalı yerel E2E
+edinim/verify akışıyla doğrulanmıştır. Windows yolu çapraz derlenmiştir; gerçek
+Windows masaüstü iptal kabul testi laboratuvar matrisinde kalır.
 
 İlk analizdeki beş P0 maddeden dördünün kod tarafı kapatılmıştır:
 

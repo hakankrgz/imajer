@@ -332,6 +332,30 @@ func TestFinalizeIncompleteArtifactWritesAuditableManifest(t *testing.T) {
 	}
 }
 
+func TestNewArtifactRejectsPreexistingEvidenceFiles(t *testing.T) {
+	caseDir := t.TempDir()
+	artifactDir := filepath.Join(caseDir, "artifacts", "disk")
+	if err := os.MkdirAll(artifactDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(artifactDir, "disk.001"), []byte("prior case bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	job := &config.Job{
+		Case: config.Case{ID: "CASE", EvidenceID: "EVID"},
+		Acquisition: config.Acquisition{
+			ChunkSize: 1 << 20, SegmentSize: 2 << 20,
+		},
+	}
+	controller := &Controller{Job: job, CaseDir: caseDir}
+	source := config.Source{
+		Path: "/dev/fake", ID: "disk-serial", Size: 1 << 20, SectorSize: 512,
+	}
+	if _, err := controller.loadOrCreateState(artifactDir, "disk", "disk", source); err == nil {
+		t.Fatal("preexisting evidence file was accepted for a new artifact")
+	}
+}
+
 type faultTransport struct {
 	mu                     sync.Mutex
 	starts                 int

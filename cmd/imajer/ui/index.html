@@ -58,7 +58,7 @@
         <div class="field wide">
           <label for="existingJob">Job dosyasının yolu</label>
           <div class="path-picker">
-            <input id="existingJob" type="text" autocomplete="off" placeholder="/tam/yol/job.yaml">
+            <input id="existingJob" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="/tam/yol/job.yaml">
             <button type="button" class="button secondary browse-button" data-browse-target="#existingJob" data-browse-kind="file">Gözat…</button>
           </div>
           <small>Örnek: demo/local-job.yaml</small>
@@ -84,12 +84,12 @@
               <div><h2>Vaka bilgileri</h2><p>Rapor üzerinde görünecek temel bilgiler.</p></div>
             </div>
             <div class="grid two">
-              <div class="field"><label>Vaka ID</label><input name="case_id" required value="CASE-2026-001"></div>
-              <div class="field"><label>Delil ID</label><input name="evidence_id" required value="EVID-001"></div>
-              <div class="field"><label>İncelemeci</label><input name="examiner" required placeholder="Ad Soyad"></div>
-              <div class="field"><label>Kurum</label><input name="organization" placeholder="Kurum adı"></div>
-              <div class="field wide"><label>Yetki / olay numarası</label><input name="authority_ref" required placeholder="IR-2026-42"></div>
-              <div class="field wide"><label>Not</label><input name="notes" placeholder="İsteğe bağlı"></div>
+              <div class="field"><label>Vaka ID</label><input name="case_id" required value="CASE-2026-001" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+              <div class="field"><label>Delil ID</label><input name="evidence_id" required value="EVID-001" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+              <div class="field"><label>İncelemeci</label><input name="examiner" required placeholder="Ad Soyad" autocorrect="off" spellcheck="false"></div>
+              <div class="field"><label>Kurum</label><input name="organization" placeholder="Kurum adı" autocorrect="off" spellcheck="false"></div>
+              <div class="field wide"><label>Yetki / olay numarası</label><input name="authority_ref" required placeholder="IR-2026-42" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+              <div class="field wide"><label>Not</label><input name="notes" placeholder="İsteğe bağlı" autocorrect="off" spellcheck="false"></div>
             </div>
             <label class="check"><input name="authorized" type="checkbox" required> Bu işlem için açık yasal yetkim olduğunu onaylıyorum.</label>
           </div>
@@ -105,9 +105,9 @@
               <label class="choice"><input type="radio" name="transport" value="winrm"><span><b>Windows / WinRM</b><small>Uzak sunucu</small></span></label>
             </div>
             <div class="grid two remote-fields hidden">
-              <div class="field"><label>Sunucu / IP</label><input name="host" placeholder="192.168.1.50"></div>
-              <div class="field"><label>Port</label><input name="port" inputmode="numeric" placeholder="22 veya 5986"></div>
-              <div class="field"><label>Kullanıcı</label><input name="user" autocomplete="username" placeholder="forensic"></div>
+              <div class="field"><label>Sunucu / IP</label><input name="host" placeholder="192.168.1.50" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+              <div class="field"><label>Port</label><input name="port" inputmode="numeric" placeholder="22 veya 5986" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+              <div class="field"><label>Kullanıcı</label><input name="user" autocomplete="username" placeholder="forensic" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
               <div class="field"><label>Parola / anahtar parolası <b>— kaydedilmez</b></label><input name="password" type="password" autocomplete="new-password"></div>
             </div>
             <div class="scan-box remote-fields hidden">
@@ -130,12 +130,12 @@
             <details class="advanced remote-fields hidden">
               <summary>Gelişmiş bağlantı ayarları</summary>
               <div class="grid two ssh-fields hidden">
-                <div class="field"><label>known_hosts yolu</label><div class="path-picker"><input name="known_hosts" placeholder="IMAJER otomatik yönetir"><button type="button" class="button secondary browse-button" data-browse-target='[name="known_hosts"]' data-browse-kind="file">Gözat…</button></div><small>İlk bağlantıda fingerprint onayıyla otomatik hazırlanır.</small></div>
-                <div class="field"><label>SSH private key yolu <b>— isteğe bağlı</b></label><div class="path-picker"><input name="private_key" placeholder="/Users/.../.ssh/id_ed25519"><button type="button" class="button secondary browse-button" data-browse-target='[name="private_key"]' data-browse-kind="file">Gözat…</button></div></div>
+                <div class="field"><label>known_hosts yolu</label><div class="path-picker"><input name="known_hosts" placeholder="IMAJER otomatik yönetir" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target='[name="known_hosts"]' data-browse-kind="file">Gözat…</button></div><small>İlk bağlantıda fingerprint onayıyla otomatik hazırlanır.</small></div>
+                <div class="field"><label>SSH private key yolu <b>— isteğe bağlı</b></label><div class="path-picker"><input name="private_key" placeholder="/Users/.../.ssh/id_ed25519" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target='[name="private_key"]' data-browse-kind="file">Gözat…</button></div></div>
               </div>
               <div class="grid two winrm-fields hidden">
                 <div class="field"><label>Kimlik doğrulama</label><select name="auth"><option value="ntlm">NTLM</option><option value="basic">Basic</option><option value="kerberos">Kerberos</option></select></div>
-                <div class="field"><label>CA sertifikası yolu <b>— sistem güveni yeterliyse boş</b></label><div class="path-picker"><input name="ca_file" placeholder="C:\Secure\winrm-ca.pem"><button type="button" class="button secondary browse-button" data-browse-target='[name="ca_file"]' data-browse-kind="file">Gözat…</button></div></div>
+                <div class="field"><label>CA sertifikası yolu <b>— sistem güveni yeterliyse boş</b></label><div class="path-picker"><input name="ca_file" placeholder="C:\Secure\winrm-ca.pem" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target='[name="ca_file"]' data-browse-kind="file">Gözat…</button></div></div>
               </div>
             </details>
           </div>
@@ -161,7 +161,7 @@
               <div class="field wide local-disk-picker">
                 <label for="localSourcePath">Yerel test kaynak dosyası</label>
                 <div class="path-picker">
-                  <input id="localSourcePath" placeholder="/tam/yol/test-dosyasi.raw">
+                  <input id="localSourcePath" placeholder="/tam/yol/test-dosyasi.raw" autocapitalize="none" autocorrect="off" spellcheck="false">
                   <button type="button" class="button secondary browse-button" data-browse-target="#localSourcePath" data-browse-kind="file">Gözat…</button>
                 </div>
                 <small>Yerel testte dosya boyutu ve kimliği otomatik hesaplanır.</small>
@@ -170,11 +170,11 @@
               <details class="advanced">
                 <summary>Uzman disk ayarları</summary>
                 <div class="grid two">
-                  <div class="field wide"><label>Disk yolu</label><input name="disk_path" placeholder="Otomatik doldurulur"></div>
-                  <div class="field"><label>Seri / sabit ID</label><input name="disk_id" placeholder="Otomatik doldurulur"></div>
-                  <div class="field"><label>Model</label><input name="disk_model" placeholder="Otomatik doldurulur"></div>
-                  <div class="field"><label>Boyut — byte</label><input name="disk_size" inputmode="numeric" placeholder="Otomatik doldurulur"></div>
-                  <div class="field"><label>Sektör boyutu</label><input name="sector_size" inputmode="numeric" value="512"></div>
+                  <div class="field wide"><label>Disk yolu</label><input name="disk_path" placeholder="Otomatik doldurulur" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+                  <div class="field"><label>Seri / sabit ID</label><input name="disk_id" placeholder="Otomatik doldurulur" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+                  <div class="field"><label>Model</label><input name="disk_model" placeholder="Otomatik doldurulur" autocorrect="off" spellcheck="false"></div>
+                  <div class="field"><label>Boyut — byte</label><input name="disk_size" inputmode="numeric" placeholder="Otomatik doldurulur" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+                  <div class="field"><label>Sektör boyutu</label><input name="sector_size" inputmode="numeric" value="512" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
                   <div class="field"><label>Okuma yöntemi</label><select name="disk_provider"><option value="native">Native salt-okunur</option><option value="auto">Otomatik</option></select></div>
                 </div>
               </details>
@@ -185,8 +185,8 @@
                 <summary>Uzman RAM ayarları</summary>
                 <div class="grid two">
                   <div class="field"><label>RAM yöntemi</label><select name="ram_provider"><option value="auto">Otomatik</option><option value="avml">AVML</option><option value="lime">LiME</option><option value="winpmem">WinPmem</option></select></div>
-                  <div class="field"><label>Araç adı</label><input name="ram_tool_name" placeholder="avml veya lime"></div>
-                  <div class="field wide"><label>Yerel RAM aracı yolu</label><div class="path-picker"><input name="ram_tool_local" placeholder="/tool-bundle/avml"><button type="button" class="button secondary browse-button" data-browse-target='[name="ram_tool_local"]' data-browse-kind="file">Gözat…</button></div></div>
+                  <div class="field"><label>Araç adı</label><input name="ram_tool_name" placeholder="avml veya lime" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+                  <div class="field wide"><label>Yerel RAM aracı yolu</label><div class="path-picker"><input name="ram_tool_local" placeholder="/tool-bundle/avml" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target='[name="ram_tool_local"]' data-browse-kind="file">Gözat…</button></div></div>
                 </div>
               </details>
             </div>
@@ -198,17 +198,17 @@
               <div><h2>Çıktı ve güven</h2><p>Kanıt dizini, imza anahtarı ve doğrulanmış agent.</p></div>
             </div>
             <div class="grid two">
-              <div class="field wide"><label>Kanıtların kaydedileceği dizin</label><div class="path-picker"><input name="output_directory" required placeholder="/Volumes/KanitDiski/evidence"><button type="button" class="button secondary browse-button" data-browse-target='[name="output_directory"]' data-browse-kind="directory">Klasör seç…</button></div></div>
+              <div class="field wide"><label>Kanıtların kaydedileceği dizin</label><div class="path-picker"><input name="output_directory" required placeholder="/Volumes/KanitDiski/evidence" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target='[name="output_directory"]' data-browse-kind="directory">Klasör seç…</button></div></div>
             </div>
             <p class="auto-note">İmza anahtarı, uyumlu agent ve güven manifesti uygulama tarafından otomatik seçilir.</p>
             <details class="advanced">
               <summary>Uzman güven ve agent ayarları</summary>
               <div class="grid two">
-                <div class="field wide"><label>Examiner private key yolu</label><div class="path-picker"><input name="signing_key" required placeholder="/secure/examiner-private.pem"><button type="button" class="button secondary browse-button" data-browse-target='[name="signing_key"]' data-browse-kind="file">Gözat…</button></div></div>
-                <div class="field wide"><label>Yerel agent binary yolu</label><div class="path-picker"><input name="agent_local" id="agentLocal" placeholder="/path/imajer-agent"><button type="button" class="button secondary browse-button" data-browse-target="#agentLocal" data-browse-kind="file">Gözat…</button></div></div>
-                <div class="field wide remote-fields hidden"><label>Preinstalled uzak agent yolu <b>— isteğe bağlı</b></label><input name="agent_remote"></div>
-                <div class="field remote-fields hidden"><label>İmzalı tool manifest</label><div class="path-picker"><input name="tool_manifest" placeholder="/tool-bundle/tool-manifest.json"><button type="button" class="button secondary browse-button" data-browse-target='[name="tool_manifest"]' data-browse-kind="file">Gözat…</button></div></div>
-                <div class="field remote-fields hidden"><label>Tool güven public key</label><div class="path-picker"><input name="trust_public_key" placeholder="/secure/tool-release-public.pem"><button type="button" class="button secondary browse-button" data-browse-target='[name="trust_public_key"]' data-browse-kind="file">Gözat…</button></div></div>
+                <div class="field wide"><label>Examiner private key yolu</label><div class="path-picker"><input name="signing_key" required placeholder="/secure/examiner-private.pem" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target='[name="signing_key"]' data-browse-kind="file">Gözat…</button></div></div>
+                <div class="field wide"><label>Yerel agent binary yolu</label><div class="path-picker"><input name="agent_local" id="agentLocal" placeholder="/path/imajer-agent" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target="#agentLocal" data-browse-kind="file">Gözat…</button></div></div>
+                <div class="field wide remote-fields hidden"><label>Preinstalled uzak agent yolu <b>— isteğe bağlı</b></label><input name="agent_remote" autocapitalize="none" autocorrect="off" spellcheck="false"></div>
+                <div class="field remote-fields hidden"><label>İmzalı tool manifest</label><div class="path-picker"><input name="tool_manifest" placeholder="/tool-bundle/tool-manifest.json" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target='[name="tool_manifest"]' data-browse-kind="file">Gözat…</button></div></div>
+                <div class="field remote-fields hidden"><label>Tool güven public key</label><div class="path-picker"><input name="trust_public_key" placeholder="/secure/tool-release-public.pem" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target='[name="trust_public_key"]' data-browse-kind="file">Gözat…</button></div></div>
               </div>
             </details>
           </div>
@@ -228,8 +228,8 @@
           <div><span>✓</span></div>
           <div><h2>Kanıt paketini doğrula</h2><p>RAW dosyaları, hash'ler ve Ed25519 imzası denetlenir.</p></div>
         </div>
-        <div class="field wide"><label for="verifyCaseDir">Kanıt vaka dizini</label><div class="path-picker"><input id="verifyCaseDir" placeholder="/evidence/CASE-ID/EVIDENCE-ID"><button type="button" class="button secondary browse-button" data-browse-target="#verifyCaseDir" data-browse-kind="directory">Klasör seç…</button></div></div>
-        <div class="field wide"><label for="verifyPublicKey">Güvenilen examiner public key</label><div class="path-picker"><input id="verifyPublicKey" placeholder="/secure/examiner-public.pem"><button type="button" class="button secondary browse-button" data-browse-target="#verifyPublicKey" data-browse-kind="file">Gözat…</button></div></div>
+        <div class="field wide"><label for="verifyCaseDir">Kanıt vaka dizini</label><div class="path-picker"><input id="verifyCaseDir" placeholder="/evidence/CASE-ID/EVIDENCE-ID" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target="#verifyCaseDir" data-browse-kind="directory">Klasör seç…</button></div></div>
+        <div class="field wide"><label for="verifyPublicKey">Güvenilen examiner public key</label><div class="path-picker"><input id="verifyPublicKey" placeholder="/secure/examiner-public.pem" autocapitalize="none" autocorrect="off" spellcheck="false"><button type="button" class="button secondary browse-button" data-browse-target="#verifyPublicKey" data-browse-kind="file">Gözat…</button></div></div>
         <div class="action-row"><button class="button success" id="verifyButton">Kanıtı doğrula</button></div>
       </section>
     </section>
