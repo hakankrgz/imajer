@@ -220,7 +220,7 @@ make_macos_package() {
   sed -i '' "s/__VERSION__/$VERSION/g" "$app/Contents/Info.plist"
   cp "$BUILD_DIR/IMAJER.icns" "$app/Contents/Resources/IMAJER.icns"
   cp "$AGENT_DIR"/* "$app/Contents/Resources/agents/"
-  cp "$PROJECT_DIR/MASAUSTU_KULLANIM.md" "$app/Contents/Resources/docs/"
+  cp "$PROJECT_DIR/docs/MASAUSTU_KULLANIM.md" "$app/Contents/Resources/docs/"
   cp "$PROJECT_DIR/LICENSE" "$app/Contents/Resources/"
   cp "$PROJECT_DIR/packaging/third-party/AVML-LICENSE" \
     "$app/Contents/Resources/licenses/AVML-LICENSE"
@@ -240,7 +240,7 @@ make_windows_package() {
   build_controller windows "$arch" "$stage/IMAJER.exe" desktop
   build_controller windows "$arch" "$stage/imajer-cli.exe" cli
   cp "$AGENT_DIR"/* "$stage/agents/"
-  cp "$PROJECT_DIR/MASAUSTU_KULLANIM.md" "$stage/docs/"
+  cp "$PROJECT_DIR/docs/MASAUSTU_KULLANIM.md" "$stage/docs/"
   cp "$PROJECT_DIR/LICENSE" "$stage/"
   cp "$PROJECT_DIR/packaging/third-party/AVML-LICENSE" "$stage/licenses/AVML-LICENSE"
   cat >"$stage/BASLAT.txt" <<EOF

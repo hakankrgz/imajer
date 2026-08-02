@@ -106,7 +106,7 @@ rapora veya loglara kaydedilmez.
 
 **Yeni işlem oluştur** sekmesine geçin.
 
-![Yeni işlem: vaka ve hedef bilgileri](docs/ekip-kullanim/assets/02-yeni-islem-vaka-baglanti.png)
+![Yeni işlem: vaka ve hedef bilgileri](ekip-kullanim/assets/02-yeni-islem-vaka-baglanti.png)
 
 1. **Vaka ID** ve **Delil ID** alanlarına benzersiz değerler yazın.
 2. İncelemeci, kurum ve yetki/olay numarasını doldurun.
@@ -120,7 +120,7 @@ rapora veya loglara kaydedilmez.
 
 Ardından alınacak veri ile çıktı konumunu belirleyin.
 
-![Yeni işlem: kaynak ve çıktı ayarları](docs/ekip-kullanim/assets/03-yeni-islem-kaynak-cikti.png)
+![Yeni işlem: kaynak ve çıktı ayarları](ekip-kullanim/assets/03-yeni-islem-kaynak-cikti.png)
 
 1. **Tüm disk**, **Canlı RAM** veya **RAM + Disk** seçin.
 2. Yerel testte kaynak dosyayı; uzak işlemde listelenen doğru diski seçin.
@@ -137,7 +137,7 @@ diskini çıkarmayın.
 Daha önce hazırlanmış bir job dosyanız varsa **Mevcut işlem** sekmesini
 kullanın.
 
-![Mevcut job dosyasıyla işlem](docs/ekip-kullanim/assets/01-mevcut-islem.png)
+![Mevcut job dosyasıyla işlem](ekip-kullanim/assets/01-mevcut-islem.png)
 
 1. **Gözat** ile `job.yaml` dosyasını seçin.
 2. Gerekiyorsa hedef parolasını girin.
@@ -174,7 +174,7 @@ ağ, SSH/WinRM, hedef disk/RAM okuması ve yerel kanıt diski tarafından sını
 
 İmaj alma bittikten sonra mutlaka **Kanıt doğrula** sekmesine geçin.
 
-![Kanıt doğrulama ekranı](docs/ekip-kullanim/assets/04-kanit-dogrulama.png)
+![Kanıt doğrulama ekranı](ekip-kullanim/assets/04-kanit-dogrulama.png)
 
 1. Vaka içindeki ilgili delil dizinini seçin:
    `.../CASE-ID/EVIDENCE-ID`

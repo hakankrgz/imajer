@@ -9,5 +9,5 @@ bildirim kanalını kullanın. Bu kanal etkin değilse yalnız sorunun varlığ�
 belirten, sır içermeyen bir issue açın ve özel iletişim kanalı talep edin.
 
 Desteklenen sürüm şimdilik en son `main` dalıdır. Proje geliştirme/laboratuvar
-sürümüdür; `PLAN_EKSIK_ANALIZI.md` içinde açık kalan üretim kabul maddeleri
+sürümüdür; `docs/PLAN_EKSIK_ANALIZI.md` içinde açık kalan üretim kabul maddeleri
 tamamlanmadan mahkeme/üretim onayı verilmemelidir.

@@ -8,8 +8,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const projectDir = resolve(scriptDir, "../..");
-const input = resolve(process.argv[2] || join(projectDir, "EKIP_HIZLI_KULLANIM.md"));
-const output = resolve(process.argv[3] || join(projectDir, "EKIP_HIZLI_KULLANIM.pdf"));
+const input = resolve(process.argv[2] || join(projectDir, "docs", "EKIP_HIZLI_KULLANIM.md"));
+const output = resolve(process.argv[3] || join(projectDir, "docs", "EKIP_HIZLI_KULLANIM.pdf"));
 function browserExecutable() {
   const candidates = [
     process.env.IMAJER_CHROME,
@@ -155,7 +155,7 @@ function markdownToHTML(markdown) {
 
 const markdown = readFileSync(input, "utf8");
 const content = markdownToHTML(markdown);
-const baseURL = pathToFileURL(`${projectDir}/`).href;
+const baseURL = pathToFileURL(`${dirname(input)}/`).href;
 const generated = new Intl.DateTimeFormat("tr-TR", {
   dateStyle: "long",
   timeZone: "Europe/Istanbul",
