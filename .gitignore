@@ -18,11 +18,24 @@
 /.imajer-ui/
 
 # Credentials and platform noise
+.env
+.env.*
+!.env.example
 *.pem
 *.key
 *.p12
 *.pfx
+*.kdbx
+authorized_keys
+known_hosts
 .DS_Store
 Thumbs.db
 *.log
 *.tmp
+
+# Editor and local workspace state
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

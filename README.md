@@ -1,5 +1,8 @@
 # imajer
 
+[![CI](https://github.com/hakankrgz/imajer/actions/workflows/ci.yml/badge.svg)](https://github.com/hakankrgz/imajer/actions/workflows/ci.yml)
+[![Lisans: Apache-2.0](https://img.shields.io/badge/Lisans-Apache--2.0-blue.svg)](LICENSE)
+
 `imajer`, uzak Linux ve Windows sunucularından fiziksel disk veya canlı RAM
 verisini hedefte imaj/staging dosyası oluşturmadan yerel kanıt deposuna aktaran
 bir adli edinim aracıdır.
@@ -31,6 +34,12 @@ node docs/ekip-kullanim/build-pdf.mjs
 > belleğini, işletim sistemi loglarını ve filesystem metadata'sını değiştirir.
 > “Zero disk footprint” yalnız hedefte RAM/disk imajı veya staging parçası
 > oluşturulmaması anlamındadır.
+
+> [!IMPORTANT]
+> Proje geliştirme/laboratuvar aşamasındadır. Gerçek vaka veya üretim kullanımı
+> öncesinde kurumunuza özgü yetkilendirme, kabul testi ve chain-of-custody
+> prosedürleri uygulanmalıdır. Açık kalan doğrulamalar
+> [`PLAN_EKSIK_ANALIZI.md`](PLAN_EKSIK_ANALIZI.md) içinde izlenir.
 
 ## Bileşenler
 
@@ -256,3 +265,14 @@ doğrulanmış sonuç için
 bakın. Linux arm64 kesintisiz SSH regular-file akışı doğrulanmıştır. WinRM,
 raw disk, kernel modülü, bağlantı-kopması ve Windows driver kullanımı yine de
 yetkili izole VM/hardware laboratuvarında ayrıca doğrulanmalıdır.
+
+## Katkı, güvenlik ve lisans
+
+Katkı süreci ve yerel doğrulama adımları için
+[`CONTRIBUTING.md`](CONTRIBUTING.md) dosyasına bakın. Güvenlik açıklarını ve
+hassas adli verileri herkese açık issue olarak paylaşmayın; özel bildirim
+yöntemi [`SECURITY.md`](SECURITY.md) içinde açıklanır.
+
+Proje [Apache License 2.0](LICENSE) ile lisanslanır. Üçüncü taraf AVML lisans
+metni [`packaging/third-party/AVML-LICENSE`](packaging/third-party/AVML-LICENSE)
+altında ayrıca korunur.
